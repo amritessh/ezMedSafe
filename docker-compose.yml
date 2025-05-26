@@ -1,0 +1,47 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./ezmedsafe-backend-node
+      dockerfile: Dockerfile
+    ports:
+      - '3000:3000'
+    environment:
+      - NODE_ENV=development
+    volumes:
+      - ./ezmedsafe-backend-node:/app
+      - /app/node_modules
+    networks:
+      - ezmedsafe-network
+
+  frontend:
+    build:
+      context: ./ezmedsafe-frontend-react
+      dockerfile: Dockerfile
+    ports:
+      - '5173:5173'
+    environment:
+      - VITE_API_URL=http://backend:3000
+    volumes:
+      - ./ezmedsafe-frontend-react:/app
+      - /app/node_modules
+    networks:
+      - ezmedsafe-network
+    depends_on:
+      - backend
+
+  data-prep:
+    build:
+      context: ./ezmedsafe-data-prep
+      dockerfile: Dockerfile
+    volumes:
+      - ./ezmedsafe-data-prep:/app
+    networks:
+      - ezmedsafe-network
+    depends_on:
+      - backend
+
+networks:
+  ezmedsafe-network:
+    driver: bridge
