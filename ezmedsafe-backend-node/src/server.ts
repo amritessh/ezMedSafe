@@ -14,5 +14,5 @@ app.get('/health', (req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log('ezMedSafe Backend is running on port ${PORT}');
+  console.log(`ezMedSafe Backend is running on port ${PORT}`);
 });
