@@ -20,6 +20,8 @@
   ],
   "description": "Backend service for EzMedSafe - A medication management and safety platform",
   "dependencies": {
+    "@google/generative-ai": "^0.24.1",
+    "@pinecone-database/pinecone": "^6.0.1",
     "@types/express": "^5.0.2",
     "@types/node": "^22.15.21",
     "cors": "^2.8.5",

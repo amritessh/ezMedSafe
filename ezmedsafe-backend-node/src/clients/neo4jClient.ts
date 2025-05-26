@@ -17,3 +17,6 @@ driver.verifyConnectivity()
 .catch(error => console.error('Neo4j Driver connection failed:',error));
 
 export default driver;
+
+
+
