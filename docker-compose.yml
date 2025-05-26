@@ -37,8 +37,6 @@ services:
       dockerfile: Dockerfile
     volumes:
       - ./ezmedsafe-data-prep:/app
-    networks:
-      - ezmedsafe-network
     depends_on:
       - backend
 
