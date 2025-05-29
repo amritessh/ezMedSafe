@@ -1,0 +1,93 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+
+model User {
+  id        String    @id @default(uuid()) @db.Uuid // Use String for UUIDs in Prisma, map to DB type
+  apiKey    String    @unique @map("api_key")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  // Relations (future)
+  InteractionAlerts InteractionAlert[] // A user can have many interaction alerts
+}
+
+// This tells Prisma about the existing 'medications' table without creating it if it exists.
+// We will later define it fully to manage its schema.
+// For now, let's just make sure Prisma knows about the table.
+model Medication {
+  id         String  @id @db.Uuid
+  rx_norm_id String? @unique @map("rx_norm_id") @db.Text // Use @map for snake_case
+  name       String  @db.Text
+  drug_class String? @map("drug_class") @db.Text
+  search_terms String[] @map("search_terms") @db.Text
+
+  Prescriptions Prescription[]
+
+  @@map("medications") // Map model name to existing table name
+}
+
+// Same for patient_profiles
+model PatientProfile {
+  id             String    @id @default(uuid()) @db.Uuid
+  ageGroup       String?   @map("age_group") @db.Text
+  renalStatus    Boolean?  @map("renal_status") @db.Boolean
+  hepaticStatus  Boolean?  @map("hepatic_status") @db.Boolean
+  cardiacStatus  Boolean?  @map("cardiac_status") @db.Boolean
+
+  // Relations (future)
+  InteractionAlerts InteractionAlert[]
+  Prescriptions     Prescription[]
+
+  @@map("patient_profiles")
+}
+
+// (Add Prescription and InteractionAlert models later in Day 4)
+model Prescription {
+  id                 String        @id @default(uuid()) @db.Uuid
+  patientProfileId   String        @map("patient_profile_id") @db.Uuid
+  medicationId       String        @map("medication_id") @db.Uuid
+  type               PrescriptionType
+  createdAt          DateTime      @default(now()) @map("created_at")
+
+  patientProfile     PatientProfile @relation(fields: [patientProfileId], references: [id])
+  medication         Medication     @relation(fields: [medicationId], references: [id])
+
+  InteractionAlerts InteractionAlert[]
+
+  @@map("prescriptions")
+}
+
+enum PrescriptionType {
+  EXISTING
+  NEW
+}
+
+
+model InteractionAlert {
+  id               String        @id @default(uuid()) @db.Uuid
+  userId           String        @map("user_id") @db.Uuid
+  patientProfileId String        @map("patient_profile_id") @db.Uuid
+  prescriptionId   String        @map("prescription_id") @db.Uuid // Linking to the specific prescription attempt
+  alertData        Json          @map("alert_data") // Stores the full JSON alert response
+  createdAt        DateTime      @default(now()) @map("created_at")
+
+  user             User          @relation(fields: [userId], references: [id])
+  patientProfile   PatientProfile @relation(fields: [patientProfileId], references: [id])
+  prescription     Prescription  @relation(fields: [prescriptionId], references: [id])
+
+  @@map("interaction_alerts")
+}
+
