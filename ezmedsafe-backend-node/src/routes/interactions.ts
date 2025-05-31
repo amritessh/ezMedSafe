@@ -1,7 +1,7 @@
 // src/routes/interactions.ts
 import express, { RequestHandler } from 'express';
 import { KGQAgent } from '../agents/kgqAgent';
-import { PatientContextInput, MedicationInput, DDIAlert } from '../models/interfaces';
+import { PatientContextInput, MedicationInput, DDIAlert } from '../types';
 
 // Extend Express Request interface to include the user property from authMiddleware
 declare global {

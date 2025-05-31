@@ -1,4 +1,4 @@
-import { PatientContextInput, MedicationInput } from '../models/interfaces';
+import { PatientContextInput, MedicationInput } from '../types';
 
 interface DDIContext {
   drugA: string;
