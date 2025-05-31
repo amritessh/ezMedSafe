@@ -22,10 +22,11 @@ export const authMiddleware = async (req: Request, res: Response, next: NextFunc
     try{
         const user = await prisma.user.findUnique({
             where: {
-                apiKey: apiKey,
+                apiKey: apiKey
+            },
                 select: {
                     id: true,
-                },
+                
             }
         });
         if(!user){
