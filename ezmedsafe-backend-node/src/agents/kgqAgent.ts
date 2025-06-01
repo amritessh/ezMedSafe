@@ -20,11 +20,22 @@ async getDDIContext(medications: string[],
        MATCH (d1:Drug) WHERE toLower(d1.name) = drugName1
        MATCH (d2:Drug) WHERE toLower(d2.name) = drugName2
        MATCH (d1)-[r:INTERACTS_WITH]->(d2)
-       OPTIONAL MATCH (r)-[:INCREASES_RISK_OF]->(c:ClinicalConsequence)
-       OPTIONAL MATCH (r)-[:EXACERBATED_BY]->(pc:PatientCharacteristic)
-       RETURN d1.name AS drugA, d2.name AS drugB, r.mechanism AS mechanism,r.notes AS interactionNotes,
-       COLLECT(DISTINCT c.name) AS clinicalConsequences, COLLECT(DISTINCT pc.name) AS exacerbatedByCharacteristics
+
+        OPTIONAL MATCH (d1)-[:INCREASES_RISK_OF]->(c1:ClinicalConsequence)
+        OPTIONAL MATCH (d2)-[:INCREASES_RISK_OF]->(c2:ClinicalConsequence)
+        OPTIONAL MATCH (d1)-[:EXACERBATED_BY]->(pc1:PatientCharacteristic)
+        OPTIONAL MATCH (d2)-[:EXACERBATED_BY]->(pc2:PatientCharacteristic)
+
        WHERE d1.name <> d2.name
+        RETURN d1.name AS drugA, d2.name AS drugB, r.mechanism AS mechanism,r.notes AS interactionNotes,
+        // Corrected: Filter out nulls before accessing .name, or collect directly.
+        // A common pattern is to collect all, then filter nulls.
+        // Or, more directly, collect the names only if the node exists.
+
+        // Simpler way to collect distinct names from potentially null nodes after OPTIONAL MATCH:
+        COLLECT(DISTINCT c1.name) + COLLECT(DISTINCT c2.name) AS combinedClinicalConsequences,
+        COLLECT(DISTINCT pc1.name) + COLLECT(DISTINCT pc2.name) AS combinedExacerbatedByCharacteristics
+       
        `;
 
        const directDDIsResult = await session.run(queryDirectDDIs, { medNames: medicationNamesLower });
