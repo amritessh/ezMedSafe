@@ -5,6 +5,8 @@ import authRouter from './routes/auth';
 import { authMiddleware } from './middleware/authMiddleware';
 import medicationsRouter from './routes/medications';
 import interactionsRouter from './routes/interactions';
+import patientProfilesRouter from './routes/patientProfiles';
+import alertHistoryRouter from './routes/alertHistory';
 
 import cors from 'cors';
 
@@ -34,6 +36,8 @@ app.use('/api', authMiddleware as express.RequestHandler);
 
 app.use('/api/medications', medicationsRouter);
 app.use('/api/check-interactions', interactionsRouter);
+app.use('/api/patient-profiles', patientProfilesRouter);
+app.use('/api/alerts/history', alertHistoryRouter);
 
 
 app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {
