@@ -24,6 +24,7 @@ model User {
 
   // Relations (future)
   InteractionAlerts InteractionAlert[] // A user can have many interaction alerts
+  PatientProfiles PatientProfile[]
 }
 
 // This tells Prisma about the existing 'medications' table without creating it if it exists.
@@ -48,6 +49,9 @@ model PatientProfile {
   renalStatus    Boolean?  @map("renal_status") @db.Boolean
   hepaticStatus  Boolean?  @map("hepatic_status") @db.Boolean
   cardiacStatus  Boolean?  @map("cardiac_status") @db.Boolean
+
+  userId         String             @map("user_id") @db.Uuid // Foreign key column
+  user           User               @relation(fields: [userId], references: [id]) // Relation field
 
   // Relations (future)
   InteractionAlerts InteractionAlert[]

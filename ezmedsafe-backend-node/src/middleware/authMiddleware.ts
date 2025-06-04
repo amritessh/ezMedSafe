@@ -11,6 +11,7 @@ declare global{
     }
 }
 
+const TEMP_VALID_API_KEY = process.env.API_KEY ||'1234';
 
 
 export const authMiddleware = async (req: Request, res: Response, next: NextFunction) => {
@@ -29,6 +30,7 @@ export const authMiddleware = async (req: Request, res: Response, next: NextFunc
                 
             }
         });
+        
         if(!user){
             console.warn(`Unauthorized: Invalid API Key Attempt: ${apiKey} from ${req.ip}`);
             return res.status(401).json({error: 'Unauthorized: Invalid API Key'});

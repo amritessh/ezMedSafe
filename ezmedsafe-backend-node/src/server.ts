@@ -6,10 +6,19 @@ import { authMiddleware } from './middleware/authMiddleware';
 import medicationsRouter from './routes/medications';
 import interactionsRouter from './routes/interactions';
 
+import cors from 'cors';
+
 dotenv.config({ path: path.resolve(__dirname, '../.env') });
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+
+app.use(cors({
+  origin: 'http://localhost:5173', // <--- This MUST EXACTLY match your Vite dev server URL
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'], // <--- Include OPTIONS for preflight requests
+  allowedHeaders: ['Content-Type', 'X-API-Key'], // <--- Include your custom headers
+}));
 
 app.use(express.json()); 
 
