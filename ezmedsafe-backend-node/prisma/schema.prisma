@@ -16,7 +16,6 @@ datasource db {
 }
         
 
-
 model User {
   id        String    @id @default(uuid()) @db.Uuid 
   apiKey    String    @unique @map("api_key")
