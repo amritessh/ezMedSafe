@@ -15,22 +15,20 @@ router.get('/history', async (req: any, res: any) => {
     const alerts = await prisma.interactionAlert.findMany({
       where: { userId: userId },
       orderBy: { createdAt: 'desc' }, // Get most recent alerts first
-      include: {
-        patientProfile: { select: { id: true, ageGroup: true } },
-        prescription: { 
-          include: { 
-            medication: { select: { name: true } } 
-          } 
-        }
+      include: { // Include related data for display
+        patientProfile: { select: { id: true, ageGroup: true, renalStatus: true, hepaticStatus: true, cardiacStatus: true } },
+        prescription: { include: { medication: { select: { name: true } } } } // Include the new medication name from the prescription
       }
     });
 
-    // Format alerts for frontend, if needed (example: flatten prescription medication names)
+    // Format alerts for frontend display
     const formattedAlerts = alerts.map(alert => ({
         id: alert.id,
         createdAt: alert.createdAt,
-        alertData: alert.alertData, // The raw JSON of the alert
-        patientInfo: alert.patientProfile ? `Patient (${alert.patientProfile.ageGroup})` : 'N/A',
+        // Use the JSON data directly. frontend will parse it.
+        alertData: alert.alertData, // This is the DDIAlert object stored as JSON
+        patientInfo: alert.patientProfile ?
+                             `Age: ${alert.patientProfile.ageGroup || 'N/A'}, Renal: ${alert.patientProfile.renalStatus ? 'Yes' : 'No'}, Hepatic: ${alert.patientProfile.hepaticStatus ? 'Yes' : 'No'}, Cardiac: ${alert.patientProfile.cardiacStatus ? 'Yes' : 'No'}` : 'N/A',
         newMedicationName: alert.prescription?.medication?.name || 'N/A'
     }));
 
