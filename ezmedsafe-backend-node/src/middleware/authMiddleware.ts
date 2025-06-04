@@ -30,6 +30,7 @@ export const authMiddleware = async (req: Request, res: Response, next: NextFunc
                 
             }
         });
+        
         if(!user){
             console.warn(`Unauthorized: Invalid API Key Attempt: ${apiKey} from ${req.ip}`);
             return res.status(401).json({error: 'Unauthorized: Invalid API Key'});
