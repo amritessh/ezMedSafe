@@ -16,7 +16,6 @@ datasource db {
 }
         
 
-
 model User {
   id        String    @id @default(uuid()) @db.Uuid 
   apiKey    String    @unique @map("api_key")
@@ -25,6 +24,8 @@ model User {
   // Relations (future)
   InteractionAlerts InteractionAlert[] // A user can have many interaction alerts
   PatientProfiles PatientProfile[]
+
+  @@map("users")
 }
 
 // This tells Prisma about the existing 'medications' table without creating it if it exists.
