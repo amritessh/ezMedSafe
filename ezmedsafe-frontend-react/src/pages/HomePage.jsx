@@ -1,3 +1,4 @@
+// src/pages/HomePage.jsx (Key changes in the alerts display section)
 import React, { useState, useEffect } from 'react';
 import MedicationInput from '@/components/MedicationInput';
 import PatientContextForm from '@/components/PatientContextForm';
@@ -16,7 +17,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue
-} from '@/components/ui/select'; // For patient profile selection
+} from '@/components/ui/select';
 import {
   Dialog,
   DialogContent,
@@ -24,26 +25,27 @@ import {
   DialogTitle,
   DialogDescription,
   DialogFooter
-} from '@/components/ui/dialog'; // For new patient modal
+} from '@/components/ui/dialog';
 import { useAuth } from '@/hooks/useAuth';
-import { patientProfilesApi, interactionsApi } from '@/api/ezmedsafeApi'; // New API imports
+import { patientProfilesApi, interactionsApi } from '@/api/ezmedsafeApi';
 import { toast } from 'sonner';
+import AlertCard from '@/components/AlertCard'; // Import AlertCard
 
 function HomePage() {
-  const { userId } = useAuth(); // Get userId from context
+  // ... (existing state and useEffect for fetching patient profiles) ...
+  const { userId } = useAuth();
   const [existingMedications, setExistingMedications] = useState([]);
   const [newMedication, setNewMedication] = useState(null);
-  const [patientContext, setPatientContext] = useState({}); // For current form input
+  const [patientContext, setPatientContext] = useState({});
   const [selectedPatientProfileId, setSelectedPatientProfileId] =
-    useState(null); // ID of profile being used
-  const [userPatientProfiles, setUserPatientProfiles] = useState([]); // List of profiles for current user
-  const [showNewPatientModal, setShowNewPatientModal] = useState(false); // Modal state
+    useState(null);
+  const [userPatientProfiles, setUserPatientProfiles] = useState([]);
+  const [showNewPatientModal, setShowNewPatientModal] = useState(false);
 
   const [alerts, setAlerts] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  // Fetch patient profiles for current user on mount
   useEffect(() => {
     const fetchPatientProfiles = async () => {
       if (!userId) return;
@@ -51,8 +53,8 @@ function HomePage() {
         const profiles = await patientProfilesApi.getAll();
         setUserPatientProfiles(profiles);
         if (profiles.length > 0) {
-          setSelectedPatientProfileId(profiles[0].id); // Select first profile by default
-          setPatientContext(profiles[0]); // Load its context into the form
+          setSelectedPatientProfileId(profiles[0].id);
+          setPatientContext(profiles[0]);
         }
       } catch (err) {
         console.error('Error fetching patient profiles:', err);
@@ -61,23 +63,6 @@ function HomePage() {
     };
     fetchPatientProfiles();
   }, [userId]);
-
-  const handleSavePatientProfile = async (newContext) => {
-    try {
-      setLoading(true);
-      const createdProfile = await patientProfilesApi.create(newContext);
-      setUserPatientProfiles((prev) => [...prev, createdProfile]);
-      setSelectedPatientProfileId(createdProfile.id);
-      setPatientContext(createdProfile);
-      setShowNewPatientModal(false);
-      toast.success('Patient profile saved successfully!');
-    } catch (err) {
-      console.error('Error saving patient profile:', err);
-      toast.error('Failed to save patient profile.');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleAddExistingMed = (med) => {
     if (
@@ -99,13 +84,29 @@ function HomePage() {
     setNewMedication(med);
   };
 
+  const handleSavePatientProfile = async (newContext) => {
+    try {
+      setLoading(true);
+      const createdProfile = await patientProfilesApi.create(newContext);
+      setUserPatientProfiles((prev) => [...prev, createdProfile]);
+      setSelectedPatientProfileId(createdProfile.id);
+      setPatientContext(createdProfile);
+      setShowNewPatientModal(false);
+      toast.success('Patient profile saved successfully!');
+    } catch (err) {
+      console.error('Error saving patient profile:', err);
+      toast.error('Failed to save patient profile.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleCheckInteractions = async () => {
     if (!newMedication || !newMedication.name) {
       setError('Please enter a new medication to check.');
       toast.error('Please enter a new medication to check.');
       return;
     }
-    // This check is good for initial validation, but the sending logic below needs refinement
     if (!selectedPatientProfileId && !patientContext.age_group) {
       setError('Please select or create a patient profile.');
       toast.error('Please select or create a patient profile.');
@@ -117,23 +118,19 @@ function HomePage() {
     setAlerts([]);
 
     try {
-      // Determine the patientProfileId to send to the backend
       let patientProfileIdToSend = null;
       if (
         selectedPatientProfileId &&
         selectedPatientProfileId !== 'new-profile'
       ) {
-        // If an existing profile is selected, send its ID
         patientProfileIdToSend = selectedPatientProfileId;
       }
-      // If selectedPatientProfileId is 'new-profile', patientProfileIdToSend remains null,
-      // which will cause the backend to create a new profile based on patientContext.
 
       const data = await interactionsApi.check(
-        patientContext, // Always send patientContext, as it's used for new profiles or contextual filtering
+        patientContext,
         existingMedications,
         newMedication,
-        patientProfileIdToSend // ONLY send a UUID if an existing profile is truly selected
+        patientProfileIdToSend
       );
       setAlerts(data.alerts || []);
       toast.success('Interaction check complete!');
@@ -145,6 +142,7 @@ function HomePage() {
       setLoading(false);
     }
   };
+
   return (
     <div className='min-h-screen bg-gray-50 p-6 flex flex-col items-center'>
       <h1 className='text-5xl font-extrabold text-blue-700 mb-10 tracking-tight'>
@@ -255,7 +253,6 @@ function HomePage() {
         </CardContent>
       </Card>
 
-      {/* Alerts Display (unchanged for now) */}
       {alerts.length > 0 && (
         <Card className='w-full max-w-3xl'>
           <CardHeader>
@@ -265,32 +262,8 @@ function HomePage() {
           </CardHeader>
           <CardContent className='space-y-4'>
             {alerts.map((alert, index) => (
-              <div
-                key={index}
-                className='border-b border-gray-200 pb-4 last:border-b-0 last:pb-0'
-              >
-                <p
-                  className={`font-semibold text-lg ${
-                    alert.severity === 'High'
-                      ? 'text-red-600'
-                      : 'text-orange-500'
-                  }`}
-                >
-                  {alert.severity} Alert: {alert.drugA} + {alert.drugB}
-                </p>
-                <p className='text-gray-700 mt-1'>
-                  <span className='font-medium'>Explanation:</span>{' '}
-                  {alert.explanation}
-                </p>
-                <p className='text-gray-700 mt-1'>
-                  <span className='font-medium'>Implication:</span>{' '}
-                  {alert.clinicalImplication}
-                </p>
-                <p className='text-gray-700 mt-1'>
-                  <span className='font-medium'>Recommendation:</span>{' '}
-                  {alert.recommendation}
-                </p>
-              </div>
+              // Now using AlertCard component
+              <AlertCard key={index} alert={alert} />
             ))}
           </CardContent>
         </Card>
