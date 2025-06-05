@@ -4,7 +4,7 @@ import prisma from '../clients/prismaClient';
 const router = express.Router();
 
 // GET /api/alerts/history - Get all interaction alerts for the authenticated user
-router.get('/history', async (req: any, res: any) => {
+router.get('/alerts/history', async (req: any, res: any) => {
   const userId = req.user?.id; // From authMiddleware
 
   if (!userId) {
