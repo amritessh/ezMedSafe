@@ -1,8 +1,10 @@
 import { KGQAgent } from '../agents/kgqAgent';
+import { ERAAgent } from '../agents/eraAgent';
 import prisma from '../clients/prismaClient';
 import { PatientContextInput, MedicationInput, DDIAlert, DDIQueryResult } from '../types';
 
-        const kgqAgent = new KGQAgent(); // Initialize once
+        const kgqAgent = new KGQAgent();
+        const eraAgent = new ERAAgent();// Initialize once
 
         export class InteractionService {
 
