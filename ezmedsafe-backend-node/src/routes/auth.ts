@@ -1,6 +1,6 @@
 import express from 'express';
 import { AuthService } from '../services/authService'; // Import the new service
-import { validate, loginSchema } from '../middleware/validationMiddleware'; // To be added in next step
+import { validate, loginSchema } from '../middleware/validationMiddleware';
 
 const router = express.Router();
 const authService = new AuthService(); // Initialize the service
