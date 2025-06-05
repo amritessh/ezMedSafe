@@ -1,26 +1,17 @@
-import express from 'express';
+// src/routes/patientProfiles.ts (updated)
+import express, { Request, Response } from 'express';
 import prisma from '../clients/prismaClient';
-import { Prisma } from '@prisma/client';
-
-// Extend Express Request type to include user
-declare global {
-  namespace Express {
-    interface Request {
-      user?: {
-        id: string;
-      };
-    }
-  }
-}
+import { validate, patientContextSchema } from '../middleware/validationMiddleware'; // Import validation
 
 const router = express.Router();
 
-router.post('/', async (req: any, res: any) => {
+router.post('/', validate(patientContextSchema), async (req: Request, res: Response): Promise<void> => { // Apply validation
     const {ageGroup, renalStatus, hepaticStatus, cardiacStatus} = req.body;
     const userId = req.user?.id;
 
     if (!userId) {
-        return res.status(401).json({ error: 'Unauthorized: User ID missing from token.' });
+        res.status(401).json({ error: 'Unauthorized: User ID missing from token.' });
+        return;
     }
 
     try {
@@ -30,10 +21,8 @@ router.post('/', async (req: any, res: any) => {
                 renalStatus,
                 hepaticStatus,
                 cardiacStatus,
-                user: {
-                    connect: { id: userId }
-                }
-            } as Prisma.PatientProfileCreateInput,
+                userId: userId,
+            },
         });
         res.status(201).json(patientProfile);
     } catch (error) {
@@ -42,22 +31,18 @@ router.post('/', async (req: any, res: any) => {
     }
 });
 
-// GET /api/patient-profiles - Get all patient profiles for the authenticated user
-router.get('/', async (req: any, res: any) => {
+// GET /api/patient-profiles - Get all patient profiles for the authenticated user (no body validation needed)
+router.get('/', async (req: Request, res: Response): Promise<void> => {
     const userId = req.user?.id;
 
     if (!userId) {
-        return res.status(401).json({ error: 'Unauthorized: User ID missing from token.' });
+        res.status(401).json({ error: 'Unauthorized: User ID missing from token.' });
+        return;
     }
 
     try {
         const patientProfiles = await prisma.patientProfile.findMany({
-            where: {
-                user: {
-                    id: userId
-                }
-            } as Prisma.PatientProfileWhereInput,
-            orderBy: { id: 'desc' },
+            where: { userId: userId }
         });
         res.json(patientProfiles);
     } catch (error) {

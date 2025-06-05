@@ -1,7 +1,7 @@
-// src/routes/interactions.ts
-import express, { RequestHandler } from 'express';
-import { KGQAgent } from '../agents/kgqAgent';
+import express from 'express';
 import { PatientContextInput, MedicationInput, DDIAlert } from '../types';
+import { InteractionService } from '../services/interactionService'; // Import the new service
+import prisma from '../clients/prismaClient'; // Needed for patient profile lookup if ID provided
 
 // Extend Express Request interface to include the user property from authMiddleware
 declare global {
@@ -13,65 +13,66 @@ declare global {
 }
 
 const router = express.Router();
-const kgqAgent = new KGQAgent();
+const interactionService = new InteractionService(); // Initialize the service
 
-// POST /api/check-interactions - Now protected by authMiddleware applied in server.ts
-router.post('/', (async (req, res) => {
+// POST /api/check-interactions - Protected by authMiddleware
+router.post('/', async (req: any, res: any) => {
   const {
     patientContext,
     existingMedications,
-    newMedication
-  }: { patientContext: PatientContextInput, existingMedications: MedicationInput[], newMedication: MedicationInput } = req.body;
+    newMedication,
+    patientProfileId: frontendPatientProfileId
+  }: { patientContext: PatientContextInput, existingMedications: MedicationInput[], newMedication: MedicationInput, patientProfileId?: string } = req.body;
 
-  // Access user ID from request object (set by authMiddleware)
   const userId = req.user?.id;
   if (!userId) {
-      // This should ideally not happen if authMiddleware is correctly applied
       return res.status(401).json({ error: 'Authentication required for this operation.' });
   }
 
-  if (!patientContext || !existingMedications || !newMedication || !newMedication.name) {
-    return res.status(400).json({ error: 'Missing required fields: patientContext, existingMedications (array), newMedication (object with name)' });
+  if (!newMedication || !newMedication.name) {
+    return res.status(400).json({ error: 'Missing required fields: newMedication name.' });
   }
 
+  let currentPatientProfileId: string;
   try {
-    const allMedNames = [...existingMedications.map(m => m.name), newMedication.name];
-
-    // --- CALL KGQ AGENT ---
-    const ddiResultsFromKG = await kgqAgent.getDDIContext(allMedNames, patientContext);
-
-    const alerts: DDIAlert[] = [];
-
-    // For MVP, just return the raw results from KGQ for now to verify Day 2 progress
-    // Persistence to Prisma InteractionAlerts table will be added on Day 5
-    if (ddiResultsFromKG.length > 0) {
-        ddiResultsFromKG.forEach(kgResult => {
-            alerts.push({
-                severity: 'High',
-                drugA: kgResult.drugA,
-                drugB: kgResult.drugB,
-                explanation: `RAW KG RESULT (Mechanism: ${kgResult.mechanism}, Notes: ${kgResult.interactionNotes || 'N/A'}, Consequences: ${kgResult.clinicalConsequences.join(', ')}, Exacerbated by: ${kgResult.exacerbatedByCharacteristics.join(', ') || 'N/A'})`,
-                clinicalImplication: 'See raw KG result above. Further AI processing needed.',
-                recommendation: 'Further AI processing needed.'
-            });
+    // --- Handle Patient Profile (Create if new, or use existing) ---
+    if (frontendPatientProfileId) {
+        const existingProfile = await prisma.patientProfile.findUnique({
+            where: { id: frontendPatientProfileId },
+            select: { id: true, userId: true }
         });
+        if (!existingProfile || existingProfile.userId !== userId) {
+            return res.status(400).json({ error: 'Invalid or unauthorized patientProfileId.' });
+        }
+        currentPatientProfileId = existingProfile.id;
     } else {
-        alerts.push({
-            severity: 'Low',
-            drugA: newMedication.name,
-            drugB: 'N/A',
-            explanation: 'No direct interaction found in KG for this MVP scope.',
-            clinicalImplication: 'No immediate high-risk DDI within MVP scope. Consult full clinical resources.',
-            recommendation: 'Continue monitoring per standard clinical practice.'
+        const newProfile = await prisma.patientProfile.create({
+            data: {
+                userId: userId,
+                ageGroup: patientContext.age_group,
+                renalStatus: patientContext.renal_status,
+                hepaticStatus: patientContext.hepatic_status,
+                cardiacStatus: patientContext.cardiac_status,
+            }
         });
+        currentPatientProfileId = newProfile.id;
     }
+
+    // --- Call InteractionService to handle the rest ---
+    const alerts = await interactionService.checkAndPersistInteractions(
+        userId,
+        currentPatientProfileId,
+        patientContext, // Pass patientContext for KGQAgent, even if profile ID is managed here
+        existingMedications,
+        newMedication
+    );
 
     res.json({ alerts });
 
   } catch (error) {
-    console.error('Error checking interactions:', error);
-    res.status(500).json({ error: 'Internal server error during interaction check' });
+    console.error('Error checking interactions and persisting:', error);
+    res.status(500).json({ error: 'Internal server error during interaction check/persistence' });
   }
-}) as RequestHandler);
+});
 
 export default router;

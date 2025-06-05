@@ -1,26 +1,83 @@
-import { useState } from 'react';
-import MedicationInput from '../components/MedicationInput';
-import { useAuth } from '../hooks/useAuth';
-import PatientContextForm from '../components/PatientContextForm';
-import { Button } from '../components/ui/button'; // Shadcn Button
+import React, { useState, useEffect } from 'react';
+import MedicationInput from '@/components/MedicationInput';
+import PatientContextForm from '@/components/PatientContextForm';
+import { Button } from '@/components/ui/button';
 import {
   Card,
   CardHeader,
   CardTitle,
   CardDescription,
   CardContent
-} from '@/components/ui/card'; // Shadcn Card for alerts
-import { Label } from '@/components/ui/label'; // Shadcn Label
-import '../index.css'; // Tailwind CSS
+} from '@/components/ui/card';
+import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from '@/components/ui/select'; // For patient profile selection
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter
+} from '@/components/ui/dialog'; // For new patient modal
+import { useAuth } from '@/hooks/useAuth';
+import { patientProfilesApi, interactionsApi } from '@/api/ezmedsafeApi'; // New API imports
+import { toast } from 'sonner';
 
 function HomePage() {
-  const { userId } = useAuth();
+  const { userId } = useAuth(); // Get userId from context
   const [existingMedications, setExistingMedications] = useState([]);
   const [newMedication, setNewMedication] = useState(null);
-  const [patientContext, setPatientContext] = useState({});
+  const [patientContext, setPatientContext] = useState({}); // For current form input
+  const [selectedPatientProfileId, setSelectedPatientProfileId] =
+    useState(null); // ID of profile being used
+  const [userPatientProfiles, setUserPatientProfiles] = useState([]); // List of profiles for current user
+  const [showNewPatientModal, setShowNewPatientModal] = useState(false); // Modal state
+
   const [alerts, setAlerts] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+
+  // Fetch patient profiles for current user on mount
+  useEffect(() => {
+    const fetchPatientProfiles = async () => {
+      if (!userId) return;
+      try {
+        const profiles = await patientProfilesApi.getAll();
+        setUserPatientProfiles(profiles);
+        if (profiles.length > 0) {
+          setSelectedPatientProfileId(profiles[0].id); // Select first profile by default
+          setPatientContext(profiles[0]); // Load its context into the form
+        }
+      } catch (err) {
+        console.error('Error fetching patient profiles:', err);
+        toast.error('Failed to load patient profiles.');
+      }
+    };
+    fetchPatientProfiles();
+  }, [userId]);
+
+  const handleSavePatientProfile = async (newContext) => {
+    try {
+      setLoading(true);
+      const createdProfile = await patientProfilesApi.create(newContext);
+      setUserPatientProfiles((prev) => [...prev, createdProfile]);
+      setSelectedPatientProfileId(createdProfile.id);
+      setPatientContext(createdProfile);
+      setShowNewPatientModal(false);
+      toast.success('Patient profile saved successfully!');
+    } catch (err) {
+      console.error('Error saving patient profile:', err);
+      toast.error('Failed to save patient profile.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleAddExistingMed = (med) => {
     if (
@@ -45,46 +102,49 @@ function HomePage() {
   const handleCheckInteractions = async () => {
     if (!newMedication || !newMedication.name) {
       setError('Please enter a new medication to check.');
+      toast.error('Please enter a new medication to check.');
       return;
     }
+    // This check is good for initial validation, but the sending logic below needs refinement
+    if (!selectedPatientProfileId && !patientContext.age_group) {
+      setError('Please select or create a patient profile.');
+      toast.error('Please select or create a patient profile.');
+      return;
+    }
+
     setLoading(true);
     setError(null);
-    setAlerts([]); // Clear previous alerts
+    setAlerts([]);
 
     try {
-      const response = await fetch(
-        `${import.meta.env.VITE_API_BASE_URL}/check-interactions`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-API-Key': import.meta.env.VITE_API_KEY // Your API key from frontend .env
-          },
-          body: JSON.stringify({
-            patientContext,
-            existingMedications,
-            newMedication
-          })
-        }
-      );
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(
-          errorData.error || `HTTP error! Status: ${response.status}`
-        );
+      // Determine the patientProfileId to send to the backend
+      let patientProfileIdToSend = null;
+      if (
+        selectedPatientProfileId &&
+        selectedPatientProfileId !== 'new-profile'
+      ) {
+        // If an existing profile is selected, send its ID
+        patientProfileIdToSend = selectedPatientProfileId;
       }
+      // If selectedPatientProfileId is 'new-profile', patientProfileIdToSend remains null,
+      // which will cause the backend to create a new profile based on patientContext.
 
-      const data = await response.json();
-      setAlerts(data.alerts || []); // Expecting { alerts: [...] }
+      const data = await interactionsApi.check(
+        patientContext, // Always send patientContext, as it's used for new profiles or contextual filtering
+        existingMedications,
+        newMedication,
+        patientProfileIdToSend // ONLY send a UUID if an existing profile is truly selected
+      );
+      setAlerts(data.alerts || []);
+      toast.success('Interaction check complete!');
     } catch (err) {
       console.error('Error checking interactions:', err);
       setError(err.message || 'An unexpected error occurred.');
+      toast.error(`Error: ${err.message || 'An unexpected error occurred.'}`);
     } finally {
       setLoading(false);
     }
   };
-
   return (
     <div className='min-h-screen bg-gray-50 p-6 flex flex-col items-center'>
       <h1 className='text-5xl font-extrabold text-blue-700 mb-10 tracking-tight'>
@@ -100,11 +160,47 @@ function HomePage() {
           </CardDescription>
         </CardHeader>
         <CardContent className='space-y-6'>
-          <PatientContextForm
-            patientContext={patientContext}
-            onContextChange={setPatientContext}
-          />
+          {/* Patient Profile Selection/Creation */}
+          <div className='space-y-4'>
+            <Label htmlFor='patient-profile-select'>
+              Select Patient Profile
+            </Label>
+            <div className='flex space-x-2'>
+              <Select
+                value={selectedPatientProfileId || ''}
+                onValueChange={(value) => setSelectedPatientProfileId(value)}
+              >
+                <SelectTrigger className='flex-grow'>
+                  <SelectValue placeholder='Select existing profile' />
+                </SelectTrigger>
+                <SelectContent>
+                  {userPatientProfiles.map((profile) => (
+                    <SelectItem key={profile.id} value={profile.id}>
+                      {`Profile ${profile.ageGroup || 'N/A'} (Renal: ${
+                        profile.renalStatus ? 'Yes' : 'No'
+                      })`}
+                    </SelectItem>
+                  ))}
+                  <SelectItem value='new-profile'>
+                    Create New Profile
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+              <Button onClick={() => setShowNewPatientModal(true)}>
+                {selectedPatientProfileId === 'new-profile' ||
+                userPatientProfiles.length === 0
+                  ? 'Create Profile'
+                  : 'Edit Current'}
+              </Button>
+            </div>
+            {selectedPatientProfileId === 'new-profile' && (
+              <p className='text-sm text-gray-500'>
+                Creating a new profile for this interaction check.
+              </p>
+            )}
+          </div>
 
+          {/* Existing Medications Input (unchanged) */}
           <div className='space-y-4'>
             <Label>Existing Medications</Label>
             <MedicationInput
@@ -129,6 +225,7 @@ function HomePage() {
             </div>
           </div>
 
+          {/* New Medication Input (unchanged) */}
           <div className='space-y-4'>
             <Label>New Medication to Check</Label>
             <MedicationInput
@@ -158,6 +255,7 @@ function HomePage() {
         </CardContent>
       </Card>
 
+      {/* Alerts Display (unchanged for now) */}
       {alerts.length > 0 && (
         <Card className='w-full max-w-3xl'>
           <CardHeader>
@@ -197,6 +295,33 @@ function HomePage() {
           </CardContent>
         </Card>
       )}
+
+      {/* New Patient Profile Modal */}
+      <Dialog open={showNewPatientModal} onOpenChange={setShowNewPatientModal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Create/Edit Patient Profile</DialogTitle>
+            <DialogDescription>
+              Enter details for a new or existing patient profile.
+            </DialogDescription>
+          </DialogHeader>
+          <PatientContextForm
+            patientContext={patientContext}
+            onContextChange={setPatientContext}
+          />
+          <DialogFooter>
+            <Button
+              onClick={() => setShowNewPatientModal(false)}
+              variant='outline'
+            >
+              Cancel
+            </Button>
+            <Button onClick={() => handleSavePatientProfile(patientContext)}>
+              Save Profile
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import express from 'express';
+import express, { ErrorRequestHandler } from 'express';
 import dotenv from 'dotenv';
 import path from 'path';
 import authRouter from './routes/auth';
@@ -7,8 +7,8 @@ import medicationsRouter from './routes/medications';
 import interactionsRouter from './routes/interactions';
 import patientProfilesRouter from './routes/patientProfiles';
 import alertHistoryRouter from './routes/alertHistory';
-
 import cors from 'cors';
+import { ZodError } from 'zod';
 
 dotenv.config({ path: path.resolve(__dirname, '../.env') });
 
@@ -40,10 +40,36 @@ app.use('/api/patient-profiles', patientProfilesRouter);
 app.use('/api/alerts/history', alertHistoryRouter);
 
 
-app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {
-  console.error(err.stack); // Log the stack trace
-  res.status(500).send('Something broke!'); // Generic error response
-});
+// app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {
+//   console.error(err.stack); // Log the stack trace
+//   res.status(500).send('Something broke!'); // Generic error response
+// });
+
+const errorHandler: ErrorRequestHandler = (err, _req, res, next) => {
+  console.error(err.stack); // Log the stack trace for debugging
+
+  if (err instanceof ZodError) {
+    res.status(400).json({
+      error: 'Validation Error',
+      details: err.errors.map(issue => ({
+        path: issue.path.join('.'),
+        message: issue.message
+      }))
+    });
+    return;
+  }
+
+  // Handle other types of errors
+  if (err.name === 'UnauthorizedError') { // Example for JWT errors if you add them later
+    res.status(401).send('Unauthorized: Invalid token');
+    return;
+  }
+
+  // Default error handler
+  res.status(500).json({ error: 'Internal Server Error' });
+};
+
+app.use(errorHandler);
 
 app.listen(PORT, () => {
   console.log(`ezMedSafe Backend is running on port ${PORT}`);
