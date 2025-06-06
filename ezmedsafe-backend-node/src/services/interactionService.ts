@@ -4,10 +4,13 @@ import { ERAAgent } from '../agents/eraAgent';
 import { EGAAgent } from '../agents/egaAgent'; // Import the new EGAAgent
 import prisma from '../clients/prismaClient';
 import { PatientContextInput, MedicationInput, DDIAlert, DDIQueryResult } from '../types';
+import { getKafkaProducer } from '../clients/kafkaClient';
 
 const kgqAgent = new KGQAgent();
 const eraAgent = new ERAAgent();
 const egaAgent = new EGAAgent(); // Initialize EGAAgent
+
+const INTERACTION_ALERTS_TOPIC = process.env.KAFKA_ALERTS_TOPIC || 'interaction_alerts_generated';
 
 export class InteractionService {
 
@@ -61,35 +64,52 @@ export class InteractionService {
 
         if (ddiResultsFromKG.length > 0) {
             for (const kgResult of ddiResultsFromKG) {
-                // Query ERA Agent for relevant evidence
                 const queryForERA = `Drug interaction between ${kgResult.drugA} and ${kgResult.drugB} mechanism: ${kgResult.mechanism}. Clinical consequences: ${kgResult.clinicalConsequences.join(', ')}.`;
                 const retrievedEvidence = await eraAgent.retrieveEvidence(queryForERA);
-                console.log(`ERA Agent retrieved evidence for "${queryForERA}":`, retrievedEvidence);
 
-                // Call EGA Agent to generate full explanation
                 const generatedAlert = await egaAgent.generateExplanation(
                     kgResult,
                     retrievedEvidence,
                     patientContext
                 );
-                console.log("EGA Agent generated alert:", generatedAlert);
 
-
-                alertsToReturn.push(generatedAlert); // Add the full generated alert for frontend response
+                alertsToReturn.push(generatedAlert);
 
                 // Persist the generated alert
-                await prisma.interactionAlert.create({
+                const createdAlert = await prisma.interactionAlert.create({
                     data: {
                         userId: userId,
                         patientProfileId: patientProfileId,
-                        prescriptionId: mainPrescriptionId || '00000000-0000-0000-0000-000000000000', // Ensure a valid UUID or handle fallback
-                        alertData: generatedAlert as any, // Store the full DDIAlert object as JSONB
+                        prescriptionId: mainPrescriptionId || '00000000-0000-0000-0000-000000000000',
+                        alertData: generatedAlert as any,
                         createdAt: new Date()
                     }
                 });
+
+                // --- Publish Event to Kafka ---
+                try {
+                    const producer = getKafkaProducer();
+                    const eventPayload = {
+                        type: 'interaction_alert_generated',
+                        alertId: createdAlert.id,
+                        userId: userId,
+                        patientProfileId: patientProfileId,
+                        alertDetails: generatedAlert,
+                        timestamp: new Date().toISOString()
+                    };
+                    producer.produce(
+                        INTERACTION_ALERTS_TOPIC,
+                        null, // Partition (null for default)
+                        Buffer.from(JSON.stringify(eventPayload)), // Message payload
+                        createdAlert.id, // Key
+                        Date.now() // Timestamp
+                    );
+                    console.log(`Published alert event to Kafka topic: ${INTERACTION_ALERTS_TOPIC}`);
+                } catch (kafkaError) {
+                    console.error('Failed to publish Kafka event:', kafkaError);
+                }
             }
         } else {
-            // If no specific DDI found from KG, still create a 'no interaction' alert
             const noAlertData: DDIAlert = {
                 severity: 'Low',
                 drugA: newMedication.name,
@@ -100,7 +120,7 @@ export class InteractionService {
             };
             alertsToReturn.push(noAlertData);
 
-            await prisma.interactionAlert.create({
+            const createdAlert = await prisma.interactionAlert.create({
                 data: {
                     userId: userId,
                     patientProfileId: patientProfileId,
@@ -109,6 +129,29 @@ export class InteractionService {
                     createdAt: new Date()
                 }
             });
+
+            // --- Publish Event to Kafka (even for no interaction) ---
+            try {
+                const producer = getKafkaProducer();
+                const eventPayload = {
+                    type: 'interaction_alert_generated',
+                    alertId: createdAlert.id,
+                    userId: userId,
+                    patientProfileId: patientProfileId,
+                    alertDetails: noAlertData,
+                    timestamp: new Date().toISOString()
+                };
+                producer.produce(
+                    INTERACTION_ALERTS_TOPIC,
+                    null,
+                    Buffer.from(JSON.stringify(eventPayload)),
+                    createdAlert.id,
+                    Date.now()
+                );
+                console.log(`Published 'no interaction' event to Kafka topic: ${INTERACTION_ALERTS_TOPIC}`);
+            } catch (kafkaError) {
+                console.error('Failed to publish Kafka event (no interaction):', kafkaError);
+            }
         }
         return alertsToReturn;
     }
