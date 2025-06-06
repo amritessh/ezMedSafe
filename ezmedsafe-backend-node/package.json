@@ -42,6 +42,7 @@
     "mongoose": "^8.1.0",
     "neo4j-driver": "^5.28.1",
     "node-rdkafka": "^3.4.0",
+    "redis": "^5.5.5",
     "ts-node": "^10.9.2",
     "typescript": "^5.8.3",
     "winston": "^3.11.0"
