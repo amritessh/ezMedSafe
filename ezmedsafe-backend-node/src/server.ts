@@ -7,7 +7,8 @@ import medicationsRouter from './routes/medications';
 import interactionsRouter from './routes/interactions';
 import patientProfilesRouter from './routes/patientProfiles';
 import alertHistoryRouter from './routes/alertHistory';
-import { initializeKafkaProducer,disconnectKafkaProducer } from './clients/kafkaClient';
+import { initializeKafkaProducer, disconnectKafkaProducer } from './clients/kafkaClient';
+import { initializeRedisClient, disconnectRedisClient } from './clients/redisClient';
 import cors from 'cors';
 import { ZodError } from 'zod';
 
@@ -20,6 +21,11 @@ initializeKafkaProducer().catch((err) => {
   console.error('Failed to initialize Kafka producer:', err);
 });
 
+initializeKafkaProducer().catch((err) => {
+  console.error('Failed to initialize Kafka producer:', err);
+});
+
+initializeRedisClient().catch((err: Error) => console.error("Failed to initialize Redis client on startup:", err));
 
 app.use(cors({
   origin: 'http://localhost:5173', // <--- This MUST EXACTLY match your Vite dev server URL
@@ -33,14 +39,16 @@ app.get('/health', (req, res) => {
   res.status(200).send('ezMedSafe Backend OK');
 });
 
-process.on('SIGTERM', () => {
-  console.log('SIGTERM received, disconnecting Kafka producer...');
-  disconnectKafkaProducer();
+process.on('SIGTERM', async () => {
+  console.log('SIGTERM received, disconnecting clients...');
+  await disconnectKafkaProducer();
+  await disconnectRedisClient();
   process.exit(0);
 });
-process.on('SIGINT', () => {
-  console.log('SIGINT received, disconnecting Kafka producer...');
-  disconnectKafkaProducer();
+process.on('SIGINT', async () => {
+  console.log('SIGINT received, disconnecting clients...');
+  await disconnectKafkaProducer();
+  await disconnectRedisClient();
   process.exit(0);
 });
 
