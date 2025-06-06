@@ -7,6 +7,7 @@ import medicationsRouter from './routes/medications';
 import interactionsRouter from './routes/interactions';
 import patientProfilesRouter from './routes/patientProfiles';
 import alertHistoryRouter from './routes/alertHistory';
+import { initializeKafkaProducer,disconnectKafkaProducer } from './clients/kafkaClient';
 import cors from 'cors';
 import { ZodError } from 'zod';
 
@@ -14,6 +15,10 @@ dotenv.config({ path: path.resolve(__dirname, '../.env') });
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+initializeKafkaProducer().catch((err) => {
+  console.error('Failed to initialize Kafka producer:', err);
+});
 
 
 app.use(cors({
@@ -26,6 +31,17 @@ app.use(express.json());
 
 app.get('/health', (req, res) => {
   res.status(200).send('ezMedSafe Backend OK');
+});
+
+process.on('SIGTERM', () => {
+  console.log('SIGTERM received, disconnecting Kafka producer...');
+  disconnectKafkaProducer();
+  process.exit(0);
+});
+process.on('SIGINT', () => {
+  console.log('SIGINT received, disconnecting Kafka producer...');
+  disconnectKafkaProducer();
+  process.exit(0);
 });
 
 // Public routes
