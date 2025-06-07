@@ -42,101 +42,77 @@ ezMedSafe leverages a modern microservices architecture with a robust set of tec
 
 ### 📐 Architecture Overview
 
-+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-|                                                                                                  ezMedSafe System Architecture                                                                                                           |
-+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+graph TB
+    subgraph "Client Layer"
+        A[User Browser<br/>React App]
+    end
 
-                                        (1) User Interaction (HTTP/HTTPS)
-                                        +----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-                                        |  +---------------------+                                                                                                                                                                             |
-                                        |  |                     |                                                                                                                                                                             |
-                                        |  |    User (Browser)   |                                                                                                                                                                             |
-                                        |  |    (React App)      |                                                                                                                                                                             |
-                                        |  |                     |                                                                                                                                                                             |
-                                        |  +----------+----------+                                                                                                                                                                             |
-                                        |             |                                                                                                                                                                                         |
-                                        |             | HTTP/HTTPS (Requests to Frontend Nginx, e.g., http://localhost:80)                                                                                                                  |
-                                        |             |                                                                                                                                                                                         |
-                                        |  +----------+----------+                                                                                                                                                                             |
-                                        |  |                     |                                                                                                                                                                             |
-                                        |  |   Frontend (Nginx)  | <-------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-                                        |  |   (Container)       |                                                                                                                                                                             |
-                                        |  |   :80 (Host Port)   |                                                                                                                                                                             |
-                                        |  |                     |                                                                                                                                                                             |
-                                        |  +----------+----------+                                                                                                                                                                             |
-                                        |             |                                                                                                                                                                                         |
-                                        |             | Proxy API Requests (/api/*) to Backend Service (http://backend:3000)                                                                                                                  |
-                                        |             | Serve UI (React App build) for other paths                                                                                                                                            |
-                                        |             |                                                                                                                                                                                         |
-+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-|                                                                                                     Kubernetes Cluster (K3s) / Docker Compose Environment                                                                                  |
-|                                                                                                                                                                                                                                          |
-|  +--------------------------+                                                                                                                                                                                                            |
-|  |                          |                                                                                                                                                                                                            |
-|  |  (2) Backend Service     |                                                                                                                                                                                                            |
-|  |  `ezmedsafe-backend-node`|                                                                                                                                                                                                            |
-|  |  (Node.js / Express)     |                                                                                                                                                                                                            |
-|  |  :3000 (Container Port)  |<-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-|  |                          |                                                                                                                                                                                                            |
-|  +-----+----+---------------+                                                                                                                                                                                                            |
-|        |    |                                                                                                                                                                                                                            |
-|        |    | API Calls (Internal to Docker Network)                                                                                                                                                                                       |
-|        |    |                                                                                                                                                                                                                            |
-|        |    |                                                                                                                                                                                                                            |
-|  +-----+----v-----+         +--------------------------+          +--------------------------+          +--------------------------+                                                                                                |
-|  |                  |         |                          |          |                          |          |                          |                                                                                                |
-|  |  Supabase        |         |    Neo4j (Knowledge    |          |     Pinecone (Vector   |          |     Google Gemini        |                                                                                                |
-|  |  (PostgreSQL)    |         |    Graph Database)     |          |     Database)          |          |     (LLM & Embeddings)   |                                                                                                |
-|  |  (Cloud Service) |<------->|  `ezmedsafe-neo4j`     |<-------->|  (Cloud Service)       |<--------->|  (Cloud Service)         |                                                                                                |
-|  |                  |         |  :7474/:7687           |          |                          |          |                          |                                                                                                |
-|  +------------------+         +--------------------------+          +--------------------------+          +--------------------------+                                                                                                |
-|                                                                                                                                                                                                                                          |
-|  +--------------------------+                                                                                                                                                                                                            |
-|  |                          |                                                                                                                                                                                                            |
-|  |  Data-Prep Service       |                                                                                                                                                                                                            |
-|  |  `ezmedsafe-data-prep`   |                                                                                                                                                                                                            |
-|  |  (Python Script)         |<---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-|  |  (Populates Pinecone     |                                                                                                                                                                                                            |
-|  |   with Embeddings)       |                                                                                                                                                                                                            |
-|  +--------------------------+                                                                                                                                                                                                            |
-|                                                                                                                                                                                                                                          |
-|  +--------------------------+                                                                                                                                                                                                            |
-|  |                          |                                                                                                                                                                                                            |
-|  |  Redis (Caching)         |                                                                                                                                                                                                            |
-|  |  `ezmedsafe-redis`       |                                                                                                                                                                                                            |
-|  |  :6379                   |                                                                                                                                                                                                            |
-|  +--------------------------+                                                                                                                                                                                                            |
-|                                                                                                                                                                                                                                          |
-|  +--------------------------+                                                                                                                                                                                                            |
-|  |                          |                                                                                                                                                                                                            |
-|  |  Kafka (Message Broker)  |                                                                                                                                                                                                            |
-|  |  `kafka` (with Zookeeper)|                                                                                                                                                                                                            |
-|  |  :9092                   |                                                                                                                                                                                                            |
-|  +--------------------------+                                                                                                                                                                                                            |
-|                                                                                                                                                                                                                                          |
-|  +--------------------------+          +--------------------------+          +--------------------------+                                                                                                                            |
-|  |                          |          |                          |          |                          |                                                                                                                            |
-|  |  Prometheus (Metrics)    |          |    Grafana (Dashboards)  |          |    ELK Stack             |                                                                                                                            |
-|  |  `prometheus`            |          |    `grafana`             |          |    (Elasticsearch,       |                                                                                                                            |
-|  |  :9090                   |<--------->|    :3001                 |          |    Kibana, Filebeat)     |                                                                                                                            |
-|  |                          |          |                          |          |    :9200/:5601           |                                                                                                                            |
-|  +--------------------------+          +--------------------------+          +--------------------------+                                                                                                                            |
-|                                                                                                                                                                                                                                          |
-|  +--------------------------+                                                                                                                                                                                                            |
-|  |                          |                                                                                                                                                                                                            |
-|  |  Jaeger (Distributed)    |                                                                                                                                                                                                            |
-|  |  Tracing                 |                                                                                                                                                                                                            |
-|  |  `jaeger`                |                                                                                                                                                                                                            |
-|  |  :16686                  |                                                                                                                                                                                                            |
-|  +--------------------------+                                                                                                                                                                                                            |
-|                                                                                                                                                                                                                                          |
-|  +--------------------------+                                                                                                                                                                                                            |
-|  |                          |                                                                                                                                                                                                            |
-|  |  Jenkins (CI/CD)         |                                                                                                                                                                                                            |
-|  |  `jenkins`               |                                                                                                                                                                                                            |
-|  |  :8080                   |                                                                                                                                                                                                            |
-|  +--------------------------+                                                                                                                                                                                                            |
-+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+    subgraph "Frontend Service"
+        B[Nginx<br/>:80<br/>- Serves React App<br/>- Proxies /api/* to backend]
+    end
+
+    subgraph "Backend Services"
+        C[Node.js/Express API<br/>ezmedsafe-backend-node<br/>:3000]
+        D[Data Prep Service<br/>ezmedsafe-data-prep<br/>Python]
+    end
+
+    subgraph "Data Storage Layer"
+        E[(Supabase<br/>PostgreSQL<br/>Cloud Service)]
+        F[(Neo4j<br/>Knowledge Graph<br/>:7474/:7687)]
+        G[(Pinecone<br/>Vector DB<br/>Cloud Service)]
+        H[(Redis<br/>Cache<br/>:6379)]
+    end
+
+    subgraph "AI/ML Services"
+        I[Google Gemini<br/>LLM & Embeddings<br/>Cloud Service]
+    end
+
+    subgraph "Message Queue"
+        J[Kafka<br/>:9092<br/>+ Zookeeper]
+    end
+
+    subgraph "Monitoring & Observability"
+        K[Prometheus<br/>:9090]
+        L[Grafana<br/>:3001]
+        M[ELK Stack<br/>Elasticsearch :9200<br/>Kibana :5601]
+        N[Jaeger<br/>Tracing<br/>:16686]
+    end
+
+    subgraph "CI/CD"
+        O[Jenkins<br/>:8080]
+    end
+
+    A -->|HTTP/HTTPS| B
+    B -->|Proxy /api/*| C
+    C --> E
+    C --> F
+    C --> G
+    C --> H
+    C --> I
+    C --> J
+    D --> G
+    D --> I
+    K --> L
+    C --> K
+    C --> M
+    C --> N
+
+    classDef client fill:#e1f5fe,stroke:#01579b,stroke-width:2px
+    classDef frontend fill:#fff3e0,stroke:#e65100,stroke-width:2px
+    classDef backend fill:#f3e5f5,stroke:#4a148c,stroke-width:2px
+    classDef storage fill:#e8f5e9,stroke:#1b5e20,stroke-width:2px
+    classDef ai fill:#fce4ec,stroke:#880e4f,stroke-width:2px
+    classDef infra fill:#f5f5f5,stroke:#424242,stroke-width:2px
+    classDef monitoring fill:#e3f2fd,stroke:#0d47a1,stroke-width:2px
+
+    class A client
+    class B frontend
+    class C,D backend
+    class E,F,G,H storage
+    class I ai
+    class J infra
+    class K,L,M,N monitoring
+    class O infra
 
 
 
