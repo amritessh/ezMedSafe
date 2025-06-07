@@ -43,7 +43,7 @@ ezMedSafe leverages a modern microservices architecture with a robust set of tec
 ### 📐 Architecture Overview
 
 
-```
+```mermaid
 graph TB
     subgraph Client["Client Layer"]
         A[User Browser<br/>React App]
