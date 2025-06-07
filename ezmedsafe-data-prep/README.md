@@ -1,6 +1,4 @@
 
-
-```markdown
 # 📊 ezMedSafe Data Preparation Service
 
 This repository houses a standalone Python service dedicated to preparing data for the `ezMedSafe` AI agents. Its primary function is to generate vector embeddings from curated text data and upload them to the Pinecone vector database. This forms the Retrieval-Augmented Generation (RAG) knowledge base for the AI agents.
