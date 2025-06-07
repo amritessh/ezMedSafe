@@ -43,43 +43,43 @@ ezMedSafe leverages a modern microservices architecture with a robust set of tec
 ### 📐 Architecture Overview
 
 graph TB
-    subgraph "Client Layer"
+    subgraph Client["Client Layer"]
         A[User Browser<br/>React App]
     end
 
-    subgraph "Frontend Service"
-        B[Nginx<br/>:80<br/>- Serves React App<br/>- Proxies /api/* to backend]
+    subgraph Frontend["Frontend Service"]
+        B[Nginx<br/>Port 80<br/>Serves React App<br/>Proxies /api/* to backend]
     end
 
-    subgraph "Backend Services"
-        C[Node.js/Express API<br/>ezmedsafe-backend-node<br/>:3000]
+    subgraph Backend["Backend Services"]
+        C[Node.js/Express API<br/>ezmedsafe-backend-node<br/>Port 3000]
         D[Data Prep Service<br/>ezmedsafe-data-prep<br/>Python]
     end
 
-    subgraph "Data Storage Layer"
+    subgraph Storage["Data Storage Layer"]
         E[(Supabase<br/>PostgreSQL<br/>Cloud Service)]
-        F[(Neo4j<br/>Knowledge Graph<br/>:7474/:7687)]
+        F[(Neo4j<br/>Knowledge Graph<br/>7474/7687)]
         G[(Pinecone<br/>Vector DB<br/>Cloud Service)]
-        H[(Redis<br/>Cache<br/>:6379)]
+        H[(Redis<br/>Cache<br/>6379)]
     end
 
-    subgraph "AI/ML Services"
+    subgraph AI["AI/ML Services"]
         I[Google Gemini<br/>LLM & Embeddings<br/>Cloud Service]
     end
 
-    subgraph "Message Queue"
-        J[Kafka<br/>:9092<br/>+ Zookeeper]
+    subgraph Queue["Message Queue"]
+        J[Kafka<br/>9092<br/>+ Zookeeper]
     end
 
-    subgraph "Monitoring & Observability"
-        K[Prometheus<br/>:9090]
-        L[Grafana<br/>:3001]
-        M[ELK Stack<br/>Elasticsearch :9200<br/>Kibana :5601]
-        N[Jaeger<br/>Tracing<br/>:16686]
+    subgraph Monitor["Monitoring & Observability"]
+        K[Prometheus<br/>9090]
+        L[Grafana<br/>3001]
+        M[ELK Stack<br/>Elasticsearch 9200<br/>Kibana 5601]
+        N[Jaeger<br/>Tracing<br/>16686]
     end
 
-    subgraph "CI/CD"
-        O[Jenkins<br/>:8080]
+    subgraph CICD["CI/CD"]
+        O[Jenkins<br/>8080]
     end
 
     A -->|HTTP/HTTPS| B
@@ -96,23 +96,6 @@ graph TB
     C --> K
     C --> M
     C --> N
-
-    classDef client fill:#e1f5fe,stroke:#01579b,stroke-width:2px
-    classDef frontend fill:#fff3e0,stroke:#e65100,stroke-width:2px
-    classDef backend fill:#f3e5f5,stroke:#4a148c,stroke-width:2px
-    classDef storage fill:#e8f5e9,stroke:#1b5e20,stroke-width:2px
-    classDef ai fill:#fce4ec,stroke:#880e4f,stroke-width:2px
-    classDef infra fill:#f5f5f5,stroke:#424242,stroke-width:2px
-    classDef monitoring fill:#e3f2fd,stroke:#0d47a1,stroke-width:2px
-
-    class A client
-    class B frontend
-    class C,D backend
-    class E,F,G,H storage
-    class I ai
-    class J infra
-    class K,L,M,N monitoring
-    class O infra
 
 
 
