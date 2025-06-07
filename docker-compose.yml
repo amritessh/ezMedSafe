@@ -47,7 +47,7 @@ services:
     ports:
       - '7474:7474'
       - '7687:7687'
-    environment: # <--- REPLACE THIS ENTIRE ENVIRONMENT SECTION
+    environment:
       - NEO4J_AUTH=neo4j/password
       # Correct Neo4j 5.x listener environment variables for Docker
       # - NEO4J_dbms_connector_http_listen_address=0.0.0.0:7474 # Standard for HTTP connector
@@ -62,146 +62,84 @@ services:
       - neo4j_data:/data
       - neo4j_logs:/logs
     healthcheck:
-      test: ['CMD-SHELL', 'wget -q -0 http://localhost:7474/ || exit 1']
+      test:
+        ['CMD-SHELL', 'wget -q -O /dev/null http://localhost:7474/ || exit 1']
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 40s
 
-    # redis:
-    #   image: redis:7.4.0-alpine
-    #   container_name: ezmedsafe-redis
-    #   ports:
-    #     - '6379:6379'
-    #   healthcheck:
-    #     test: ['CMD', 'redis-cli', 'ping']
-    #     interval: 10s
-    #     timeout: 50s
-    #     retries: 5
-
-    # zookeeper:
-    #   image: confluentinc/cp-zookeeper:7.8.0
-    #   container_name: zookeeper
-    #   ports:
-    #     - '2181:2181'
-    #   environment:
-    #     - ZOOKEEPER_CLIENT_PORT=2181
-    #     - ZOOKEEPER_TICK_TIME=2000
-    #     - ZOOKEEPER_CLIENT_PORT_BIND=0.0.0.0 # <--- ADD THIS LINE: Explicitly bind Zookeeper to all interfaces
-    # healthcheck:
-    #   test:
-    #     [
-    #       'CMD',
-    #       'sh',
-    #       '-c',
-    #       'exec zookeeper-shell localhost:2181 ls / || exit 1'
-    #     ]
-    #   interval: 10s
-    #   timeout: 5s
-    #   retries: 5
-    #   start_period: 30s
-
-    # kafka:
-    #   image: confluentinc/cp-kafka:7.8.0
-    #   container_name: kafka
-    #   ports:
-    #     - '9092:9092' # Host port 9092 maps to container's 9092
-    #   environment: # <--- REPLACE THIS ENTIRE ENVIRONMENT SECTION
-    #     - KAFKA_BROKER_ID=1
-    #     - KAFKA_ZOOKEEPER_CONNECT=zookeeper:2181
-    #     - KAFKA_LISTENERS=PLAINTEXT://0.0.0.0:9092 # Kafka listens on all interfaces (IPv4) on port 9092 inside the container
-    #     - KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://kafka:9092 # Advertises itself via Docker service name for internal network
-    #     - KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=PLAINTEXT:PLAINTEXT # Only one listener mapped
-    #     - KAFKA_INTER_BROKER_LISTENER_NAME=PLAINTEXT # Inter-broker communication uses the PLAINTEXT listener
-    #     - KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=1
-    #     - KAFKA_CONTROLLER_QUORUM_VOTERS=1@kafka:9092
-    #   depends_on:
-    #     zookeeper:
-    #       condition: service_healthy
-    #   healthcheck:
-    #     test:
-    #       [
-    #         'CMD-SHELL',
-    #         'kafka-topics --bootstrap-server localhost:9092 --list || exit 1'
-    #       ]
-    #     interval: 1m30s
-    #     timeout: 30s
-    #     retries: 5
-    #     start_period: 120s
-
-    prometheus: # <--- ADD THIS SERVICE
-      image: prom/prometheus:latest
-      container_name: prometheus
-      ports:
-        - '9090:9090' # Prometheus UI
-      volumes:
-        - ./prometheus.yml:/etc/prometheus/prometheus.yml # Mount the config file
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    ports:
+      - '9090:9090'
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
     command: '--config.file=/etc/prometheus/prometheus.yml'
     depends_on:
-      - backend # Depends on backend to scrape metrics
+      - backend
 
-  grafana: # <--- ADD THIS SERVICE
+  grafana:
     image: grafana/grafana:latest
     container_name: grafana
     ports:
-      - '3001:3000' # Grafana UI (host port 3001, container port 3000)
+      - '3001:3000'
     environment:
       - GF_SECURITY_ADMIN_USER=admin
       - GF_SECURITY_ADMIN_PASSWORD=admin
     depends_on:
-      - prometheus # Depends on Prometheus for data
+      - prometheus
 
-  elasticsearch: # <--- ADD THIS SERVICE
-    image: docker.elastic.co/elasticsearch/elasticsearch:7.17.6 # Use a compatible version
+  elasticsearch: # <--- UPDATE THIS SERVICE
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.17.6
     container_name: elasticsearch
     environment:
       - discovery.type=single-node
-      - xpack.security.enabled=false # Disable security for simplicity in MVP
-      - ES_JAVA_OPTS=-Xms512m -Xmx512m # Memory limits
+      - xpack.security.enabled=false
+      - ES_JAVA_OPTS=-Xms1g -Xmx1g # <--- INCREASED MEMORY TO 1GB
     ports:
       - '9200:9200'
       - '9300:9300'
     volumes:
-      - elasticsearch_data:/usr/share/elasticsearch/data # Persist data
-    healthcheck:
+      - elasticsearch_data:/usr/share/elasticsearch/data
+    healthcheck: # <--- INCREASED PATIENCE FOR HEALTHCHECK
       test:
         [
-          'curl',
-          '-s',
-          '-f',
-          'http://localhost:9200/_cluster/health?wait_for_status=yellow'
+          'CMD-SHELL',
+          'curl -s -f http://localhost:9200/_cluster/health?wait_for_status=yellow || exit 1'
         ]
       interval: 10s
-      timeout: 10s
-      retries: 5
-      start_period: 30s
+      timeout: 20s # Increased timeout
+      retries: 15 # Increased retries
+      start_period: 90s # Increased start_period to 90 seconds (1.5 minutes)
 
-  kibana: # <--- ADD THIS SERVICE
-    image: docker.elastic.co/kibana/kibana:7.17.6 # Must match Elasticsearch version
+  kibana:
+    image: docker.elastic.co/kibana/kibana:7.17.6
     container_name: kibana
     ports:
       - '5601:5601'
     environment:
-      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200 # Connect to Elasticsearch service
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
     depends_on:
       elasticsearch:
-        condition: service_healthy # Wait for Elasticsearch to be healthy
+        condition: service_healthy
 
-  filebeat: # <--- ADD THIS SERVICE (as an example, can be configured more robustly)
-    image: docker.elastic.co/beats/filebeat:7.17.6 # Must match ELK version
+  filebeat:
+    image: docker.elastic.co/beats/filebeat:7.17.6
     container_name: filebeat
-    user: root # Needed for Docker socket access
+    user: root
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro # For Docker logs
-      - /var/lib/docker/containers:/var/lib/docker/containers:ro # For Docker logs
-      - ./filebeat.yml:/usr/share/filebeat/filebeat.yml:ro # Mount Filebeat config
-    command: ['filebeat', '-e', '--strict.perms=false'] # Run Filebeat
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - ./filebeat.yml:/usr/share/filebeat/filebeat.yml:ro
+    command: ['filebeat', '-e', '--strict.perms=false']
     depends_on:
       elasticsearch:
-        condition: service_healthy # Wait for Elasticsearch
+        condition: service_healthy
 
 volumes:
   neo4j_data:
   neo4j_logs:
   backend_node_modules:
-  # -- NEW named volume
+  elasticsearch_data:
