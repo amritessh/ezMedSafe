@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import MedicationInput from '@/components/MedicationInput';
 import PatientContextForm from '@/components/PatientContextForm';
 import { Button } from '@/components/ui/button';

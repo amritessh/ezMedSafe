@@ -1,22 +1,36 @@
-import React, { createContext, useState, useContext, useEffect } from 'react';
+import { createContext, useState, useContext, useEffect } from 'react';
 
 export const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [userId, setUserId] = useState(null);
-  const [loading, setLoading] = useState(true); // To check local storage on mount
+  const [isAuthenticated, setIsAuthenticated] = useState(true);
+  // const [userId, setUserId] = useState(null);
+  const [userId, setUserId] = useState('dummy_user_id');
+  const [loading, setLoading] = useState(false); // To check local storage on mount
+
+  // useEffect(() => {
+  //   // Check for API key in local storage on component mount
+  //   const storedApiKey = localStorage.getItem('ezmedsafe_api_key');
+  //   if (storedApiKey) {
+  //     // In a real app, you'd send this to backend to verify validity
+  //     // For MVP, if key exists, consider logged in (simplified)
+  //     setIsAuthenticated(true);
+  //     // Optionally store userId if you need it globally from the login response
+  //     setUserId(localStorage.getItem('ezmedsafe_user_id'));
+  //   }
+  //   setLoading(false);
+  // }, []);
 
   useEffect(() => {
-    // Check for API key in local storage on component mount
-    const storedApiKey = localStorage.getItem('ezmedsafe_api_key');
-    if (storedApiKey) {
-      // In a real app, you'd send this to backend to verify validity
-      // For MVP, if key exists, consider logged in (simplified)
-      setIsAuthenticated(true);
-      // Optionally store userId if you need it globally from the login response
-      setUserId(localStorage.getItem('ezmedsafe_user_id'));
+    // You can still keep basic localStorage for a dummy API key if routes need it
+    if (!localStorage.getItem('ezmedsafe_api_key')) {
+      localStorage.setItem('ezmedsafe_api_key', '1234'); // Ensure a default key exists
+      localStorage.setItem(
+        'ezmedsafe_user_id',
+        '123e4567-e89b-12d3-a456-426614174000'
+      );
     }
+    // No actual verification needed for this bypass
     setLoading(false);
   }, []);
 

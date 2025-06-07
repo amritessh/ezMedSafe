@@ -12,19 +12,19 @@ import Navbar from './components/common/Navbar'; // New component
 import { Toaster } from 'sonner'; // Shadcn toast provider
 
 // A private route component that checks authentication
-function PrivateRoute({ children }) {
-  const { isAuthenticated, loading } = useAuth();
+// function PrivateRoute({ children }) {
+//   const { isAuthenticated, loading } = useAuth();
 
-  if (loading) {
-    return (
-      <div className='min-h-screen flex items-center justify-center'>
-        Loading...
-      </div>
-    ); // Simple loading state
-  }
+//   if (loading) {
+//     return (
+//       <div className='min-h-screen flex items-center justify-center'>
+//         Loading...
+//       </div>
+//     ); // Simple loading state
+//   }
 
-  return isAuthenticated ? children : <Navigate to='/login' replace />;
-}
+//   return isAuthenticated ? children : <Navigate to='/login' replace />;
+// }
 
 // Main App component that sets up routing and auth context
 function App() {
@@ -43,17 +43,17 @@ function App() {
               <Route
                 path='/'
                 element={
-                  <PrivateRoute>
-                    <HomePage />
-                  </PrivateRoute>
+                  // <PrivateRoute>
+                  <HomePage />
+                  // </PrivateRoute>
                 }
               />
               <Route
                 path='/history'
                 element={
-                  <PrivateRoute>
-                    <AlertHistoryPage />
-                  </PrivateRoute>
+                  // <PrivateRoute>
+                  <AlertHistoryPage />
+                  // </PrivateRoute>
                 }
               />
               {/* Catch all other routes and redirect to home if authenticated, else login */}
@@ -70,7 +70,7 @@ function App() {
 // Component to conditionally render Navbar based on auth state
 function AuthAwareNavbar() {
   const { isAuthenticated } = useAuth();
-  return isAuthenticated ? <Navbar /> : null;
+  return isAuthenticated ? <Navbar /> : <Navbar />;
 }
 
 export default App;
