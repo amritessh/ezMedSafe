@@ -62,22 +62,26 @@ ezmedsafe-backend-node/
 * Jaeger
 
 
-Database Migrations (Prisma):
+###Database Migrations (Prisma):
 From the ezmedsafe-backend-node/ directory:
 
-Bash
-
+```
 npm install
 npx prisma migrate deploy # Apply database schema migrations to PostgreSQL
+```
+
 Running the Server:
 
 Via Docker Compose (Recommended for full stack): The docker-compose.yml in the root will build and run this service. Its command is npm start.
 Locally for Development (outside Docker Compose): From ezmedsafe-backend-node/ directory:
 Bash
 
+```
 npm install
 npm run dev # Starts the server with hot-reloading
 npm start   # Starts the compiled production build
+```
+
 Note: If running locally, ensure external services (Neo4j, Redis, Kafka) are accessible on localhost (e.g., NEO4J_URI=bolt://localhost:7687, REDIS_URL=redis://localhost:6379, KAFKA_BROKER=localhost:9092).
 
 
@@ -108,7 +112,7 @@ REDIS_URL="redis://redis:6379"
 
 🔌 API Endpoints
 All API endpoints are prefixed with /api. For example, http://localhost:3000/api/auth/login.
-
+```
 GET /health: Basic server health check.
 GET /metrics: Prometheus metrics endpoint (exposes application and Node.js process metrics).
 POST /api/auth/login: Handles user login.
@@ -117,6 +121,8 @@ POST /api/check-interactions: Submits patient and medication data for DDI checks
 POST /api/patient-profiles: Creates a new patient profile.
 GET /api/patient-profiles: Retrieves all patient profiles for the authenticated user.
 GET /api/alerts/history: Fetches historical interaction alerts for the authenticated user.
+```
+
 📊 Monitoring & Tracing
 Prometheus Metrics: The backend exposes custom application metrics (e.g., API request count/latency, LLM call count/latency) and default Node.js process metrics at the /metrics endpoint.
 Centralized Logging: Logs from this service are collected by Filebeat and sent to Elasticsearch, viewable in Kibana.
