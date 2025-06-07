@@ -1,3 +1,4 @@
+// src/pages/AlertHistoryPage.jsx (Key changes in the alerts display section)
 import React, { useState, useEffect } from 'react';
 import {
   Card,
@@ -7,8 +8,9 @@ import {
   CardDescription
 } from '@/components/ui/card';
 import { useAuth } from '@/hooks/useAuth';
-import { alertHistoryApi } from '@/api/ezmedsafeApi'; // New API import
+import { alertHistoryApi } from '@/api/ezmedsafeApi';
 import { toast } from 'sonner';
+import AlertCard from '../components/AlertCard'; // Import AlertCard
 
 function AlertHistoryPage() {
   const { userId } = useAuth();
@@ -35,7 +37,7 @@ function AlertHistoryPage() {
       }
     };
     fetchAlerts();
-  }, [userId]); // Refetch when userId changes
+  }, [userId]);
 
   if (loading) {
     return (
@@ -72,43 +74,8 @@ function AlertHistoryPage() {
             </p>
           ) : (
             alerts.map((alertRecord) => (
-              <div
-                key={alertRecord.id}
-                className='border-b border-gray-200 pb-4 last:border-b-0 last:pb-0'
-              >
-                {/* Assuming alertRecord.alertData contains the DDIAlert structure */}
-                <p
-                  className={`font-semibold text-lg ${
-                    alertRecord.alertData.severity === 'High'
-                      ? 'text-red-600'
-                      : 'text-orange-500'
-                  }`}
-                >
-                  {alertRecord.alertData.severity} Alert:{' '}
-                  {alertRecord.alertData.drugA} + {alertRecord.alertData.drugB}
-                </p>
-                <p className='text-gray-700 text-sm'>
-                  Checked on: {new Date(alertRecord.createdAt).toLocaleString()}
-                </p>
-                <p className='text-gray-700 text-sm'>
-                  Patient: {alertRecord.patientInfo}
-                </p>
-                <p className='text-gray-700 text-sm'>
-                  New Medication: {alertRecord.newMedicationName}
-                </p>
-                <p className='text-gray-700 mt-2'>
-                  <span className='font-medium'>Explanation:</span>{' '}
-                  {alertRecord.alertData.explanation}
-                </p>
-                <p className='text-gray-700 mt-1'>
-                  <span className='font-medium'>Implication:</span>{' '}
-                  {alertRecord.alertData.clinicalImplication}
-                </p>
-                <p className='text-gray-700 mt-1'>
-                  <span className='font-medium'>Recommendation:</span>{' '}
-                  {alertRecord.alertData.recommendation}
-                </p>
-              </div>
+              // Pass the entire alertRecord to AlertCard, which will handle its structure
+              <AlertCard key={alertRecord.id} alert={alertRecord} />
             ))
           )}
         </CardContent>
