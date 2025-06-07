@@ -2,6 +2,7 @@ import express from 'express';
 import dotenv from 'dotenv';
 import path from 'path';
 import authRouter from './routes/auth';
+import './tracing';
 // import { authMiddleware } from './middleware/authMiddleware';
 import medicationsRouter from './routes/medications';
 import interactionsRouter from './routes/interactions';

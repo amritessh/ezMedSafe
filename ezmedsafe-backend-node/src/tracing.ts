@@ -1,31 +1,33 @@
 // ezmedsafe-backend-node/src/tracing.ts
-import { getNodeAutoInstrumentations } from "@opentelemetry/auto-instrumentations-node";
-import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto";
-import { NodeSDK } from "@opentelemetry/sdk-node";
-import { Resource } from "@opentelemetry/resources";
-import { SemanticResourceAttributes } from "@opentelemetry/semantic-conventions";
-
-const exporterOptions = {
-  url: 'http://jaeger:4318/v1/traces', // Jaeger OTLP HTTP endpoint in Docker Compose
-};
-
-// This service name will appear in Jaeger UI
-const serviceName = 'ezmedsafe-backend';
+import { NodeSDK } from '@opentelemetry/sdk-node';
+import { resourceFromAttributes } from '@opentelemetry/resources';
+import { SemanticResourceAttributes } from '@opentelemetry/semantic-conventions';
+import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-proto';
+import { getNodeAutoInstrumentations } from '@opentelemetry/auto-instrumentations-node';
 
 const sdk = new NodeSDK({
-  resource: new Resource({
-    [SemanticResourceAttributes.SERVICE_NAME]: serviceName,
+  resource: resourceFromAttributes({
+    [SemanticResourceAttributes.SERVICE_NAME]: 'ezmedsafe-backend',
+    [SemanticResourceAttributes.SERVICE_VERSION]: '1.0.0',
   }),
-  traceExporter: new OTLPTraceExporter(exporterOptions),
+  traceExporter: new OTLPTraceExporter({
+    url: process.env.OTEL_EXPORTER_OTLP_ENDPOINT || 'http://localhost:4318/v1/traces',
+  }),
   instrumentations: [getNodeAutoInstrumentations()],
 });
 
-sdk.start();
-console.log('OpenTelemetry tracing initialized for backend.');
+(async () => {
+  try {
+    await sdk.start();
+    console.log('Tracing initialized');
+  } catch (error) {
+    console.log('Error initializing tracing', error);
+  }
+})();
 
 process.on('SIGTERM', () => {
   sdk.shutdown()
-    .then(() => console.log('OpenTelemetry tracing shut down.'))
-    .catch((error) => console.log('Error shutting down OpenTelemetry tracing', error))
+    .then(() => console.log('Tracing terminated'))
+    .catch((error: unknown) => console.log('Error terminating tracing', error))
     .finally(() => process.exit(0));
 });
