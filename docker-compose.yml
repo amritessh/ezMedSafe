@@ -68,66 +68,88 @@ services:
       retries: 3
       start_period: 40s
 
-  # redis:
-  #   image: redis:7.4.0-alpine
-  #   container_name: ezmedsafe-redis
-  #   ports:
-  #     - '6379:6379'
-  #   healthcheck:
-  #     test: ['CMD', 'redis-cli', 'ping']
-  #     interval: 10s
-  #     timeout: 50s
-  #     retries: 5
+    # redis:
+    #   image: redis:7.4.0-alpine
+    #   container_name: ezmedsafe-redis
+    #   ports:
+    #     - '6379:6379'
+    #   healthcheck:
+    #     test: ['CMD', 'redis-cli', 'ping']
+    #     interval: 10s
+    #     timeout: 50s
+    #     retries: 5
 
-  # zookeeper:
-  #   image: confluentinc/cp-zookeeper:7.8.0
-  #   container_name: zookeeper
-  #   ports:
-  #     - '2181:2181'
-  #   environment:
-  #     - ZOOKEEPER_CLIENT_PORT=2181
-  #     - ZOOKEEPER_TICK_TIME=2000
-  #     - ZOOKEEPER_CLIENT_PORT_BIND=0.0.0.0 # <--- ADD THIS LINE: Explicitly bind Zookeeper to all interfaces
-  # healthcheck:
-  #   test:
-  #     [
-  #       'CMD',
-  #       'sh',
-  #       '-c',
-  #       'exec zookeeper-shell localhost:2181 ls / || exit 1'
-  #     ]
-  #   interval: 10s
-  #   timeout: 5s
-  #   retries: 5
-  #   start_period: 30s
+    # zookeeper:
+    #   image: confluentinc/cp-zookeeper:7.8.0
+    #   container_name: zookeeper
+    #   ports:
+    #     - '2181:2181'
+    #   environment:
+    #     - ZOOKEEPER_CLIENT_PORT=2181
+    #     - ZOOKEEPER_TICK_TIME=2000
+    #     - ZOOKEEPER_CLIENT_PORT_BIND=0.0.0.0 # <--- ADD THIS LINE: Explicitly bind Zookeeper to all interfaces
+    # healthcheck:
+    #   test:
+    #     [
+    #       'CMD',
+    #       'sh',
+    #       '-c',
+    #       'exec zookeeper-shell localhost:2181 ls / || exit 1'
+    #     ]
+    #   interval: 10s
+    #   timeout: 5s
+    #   retries: 5
+    #   start_period: 30s
 
-  # kafka:
-  #   image: confluentinc/cp-kafka:7.8.0
-  #   container_name: kafka
-  #   ports:
-  #     - '9092:9092' # Host port 9092 maps to container's 9092
-  #   environment: # <--- REPLACE THIS ENTIRE ENVIRONMENT SECTION
-  #     - KAFKA_BROKER_ID=1
-  #     - KAFKA_ZOOKEEPER_CONNECT=zookeeper:2181
-  #     - KAFKA_LISTENERS=PLAINTEXT://0.0.0.0:9092 # Kafka listens on all interfaces (IPv4) on port 9092 inside the container
-  #     - KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://kafka:9092 # Advertises itself via Docker service name for internal network
-  #     - KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=PLAINTEXT:PLAINTEXT # Only one listener mapped
-  #     - KAFKA_INTER_BROKER_LISTENER_NAME=PLAINTEXT # Inter-broker communication uses the PLAINTEXT listener
-  #     - KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=1
-  #     - KAFKA_CONTROLLER_QUORUM_VOTERS=1@kafka:9092
-  #   depends_on:
-  #     zookeeper:
-  #       condition: service_healthy
-  #   healthcheck:
-  #     test:
-  #       [
-  #         'CMD-SHELL',
-  #         'kafka-topics --bootstrap-server localhost:9092 --list || exit 1'
-  #       ]
-  #     interval: 1m30s
-  #     timeout: 30s
-  #     retries: 5
-  #     start_period: 120s
+    # kafka:
+    #   image: confluentinc/cp-kafka:7.8.0
+    #   container_name: kafka
+    #   ports:
+    #     - '9092:9092' # Host port 9092 maps to container's 9092
+    #   environment: # <--- REPLACE THIS ENTIRE ENVIRONMENT SECTION
+    #     - KAFKA_BROKER_ID=1
+    #     - KAFKA_ZOOKEEPER_CONNECT=zookeeper:2181
+    #     - KAFKA_LISTENERS=PLAINTEXT://0.0.0.0:9092 # Kafka listens on all interfaces (IPv4) on port 9092 inside the container
+    #     - KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://kafka:9092 # Advertises itself via Docker service name for internal network
+    #     - KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=PLAINTEXT:PLAINTEXT # Only one listener mapped
+    #     - KAFKA_INTER_BROKER_LISTENER_NAME=PLAINTEXT # Inter-broker communication uses the PLAINTEXT listener
+    #     - KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=1
+    #     - KAFKA_CONTROLLER_QUORUM_VOTERS=1@kafka:9092
+    #   depends_on:
+    #     zookeeper:
+    #       condition: service_healthy
+    #   healthcheck:
+    #     test:
+    #       [
+    #         'CMD-SHELL',
+    #         'kafka-topics --bootstrap-server localhost:9092 --list || exit 1'
+    #       ]
+    #     interval: 1m30s
+    #     timeout: 30s
+    #     retries: 5
+    #     start_period: 120s
+
+    prometheus: # <--- ADD THIS SERVICE
+      image: prom/prometheus:latest
+      container_name: prometheus
+      ports:
+        - '9090:9090' # Prometheus UI
+      volumes:
+        - ./prometheus.yml:/etc/prometheus/prometheus.yml # Mount the config file
+    command: '--config.file=/etc/prometheus/prometheus.yml'
+    depends_on:
+      - backend # Depends on backend to scrape metrics
+
+  grafana: # <--- ADD THIS SERVICE
+    image: grafana/grafana:latest
+    container_name: grafana
+    ports:
+      - '3001:3000' # Grafana UI (host port 3001, container port 3000)
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    depends_on:
+      - prometheus # Depends on Prometheus for data
 
 volumes:
   neo4j_data:
