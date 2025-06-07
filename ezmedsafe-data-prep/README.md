@@ -48,13 +48,16 @@ PINECONE_INDEX_NAME="ezmedsafe-rag-index" # Ensure this index exists in Pinecone
 Install all required Python packages:
 ```bash
 pip install -r requirements.txt
+```
 Example requirements.txt content:
 python-dotenv
 google-generativeai
 pinecone-client
-Running the Service:
+
+**Running the Service:**
 
 Via Docker Compose (Recommended for project setup): This service is designed to run as part of your main docker-compose up command. It will execute its CMD (typically python embed_rag_data.py) within its Docker container.
+
 Locally (outside Docker Compose, for development/manual execution): From the ezmedsafe-data-prep/ directory:
 Bash
 
