@@ -125,8 +125,8 @@ GET /api/alerts/history: Fetches historical interaction alerts for the authentic
 
 ### 📊 Monitoring & Tracing
 
-Prometheus Metrics: The backend exposes custom application metrics (e.g., API request count/latency, LLM call count/latency) and default Node.js process metrics at the /metrics endpoint.
+* **Prometheus Metrics**: The backend exposes custom application metrics (e.g., API request count/latency, LLM call count/latency) and default Node.js process metrics at the /metrics endpoint.
 
-Centralized Logging: Logs from this service are collected by Filebeat and sent to Elasticsearch, viewable in Kibana.
+* **Centralized Logging**: Logs from this service are collected by Filebeat and sent to Elasticsearch, viewable in Kibana.
 
-Distributed Tracing: Requests flowing through this backend are traced using OpenTelemetry and can be visualized in Jaeger.
+* **Distributed Tracing**: Requests flowing through this backend are traced using OpenTelemetry and can be visualized in Jaeger.**
