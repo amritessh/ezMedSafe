@@ -62,7 +62,7 @@ ezmedsafe-backend-node/
 * Jaeger
 
 
-###Database Migrations (Prisma):
+### Database Migrations (Prisma):
 From the ezmedsafe-backend-node/ directory:
 
 ```
@@ -70,7 +70,7 @@ npm install
 npx prisma migrate deploy # Apply database schema migrations to PostgreSQL
 ```
 
-Running the Server:
+### Running the Server:
 
 Via Docker Compose (Recommended for full stack): The docker-compose.yml in the root will build and run this service. Its command is npm start.
 Locally for Development (outside Docker Compose): From ezmedsafe-backend-node/ directory:
@@ -110,7 +110,7 @@ REDIS_URL="redis://redis:6379"
 ```
 
 
-🔌 API Endpoints
+### 🔌 API Endpoints
 All API endpoints are prefixed with /api. For example, http://localhost:3000/api/auth/login.
 ```
 GET /health: Basic server health check.
@@ -123,7 +123,10 @@ GET /api/patient-profiles: Retrieves all patient profiles for the authenticated 
 GET /api/alerts/history: Fetches historical interaction alerts for the authenticated user.
 ```
 
-📊 Monitoring & Tracing
+### 📊 Monitoring & Tracing
+
 Prometheus Metrics: The backend exposes custom application metrics (e.g., API request count/latency, LLM call count/latency) and default Node.js process metrics at the /metrics endpoint.
+
 Centralized Logging: Logs from this service are collected by Filebeat and sent to Elasticsearch, viewable in Kibana.
+
 Distributed Tracing: Requests flowing through this backend are traced using OpenTelemetry and can be visualized in Jaeger.
