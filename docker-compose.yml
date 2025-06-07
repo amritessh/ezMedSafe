@@ -151,6 +151,55 @@ services:
     depends_on:
       - prometheus # Depends on Prometheus for data
 
+  elasticsearch: # <--- ADD THIS SERVICE
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.17.6 # Use a compatible version
+    container_name: elasticsearch
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false # Disable security for simplicity in MVP
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m # Memory limits
+    ports:
+      - '9200:9200'
+      - '9300:9300'
+    volumes:
+      - elasticsearch_data:/usr/share/elasticsearch/data # Persist data
+    healthcheck:
+      test:
+        [
+          'curl',
+          '-s',
+          '-f',
+          'http://localhost:9200/_cluster/health?wait_for_status=yellow'
+        ]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  kibana: # <--- ADD THIS SERVICE
+    image: docker.elastic.co/kibana/kibana:7.17.6 # Must match Elasticsearch version
+    container_name: kibana
+    ports:
+      - '5601:5601'
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200 # Connect to Elasticsearch service
+    depends_on:
+      elasticsearch:
+        condition: service_healthy # Wait for Elasticsearch to be healthy
+
+  filebeat: # <--- ADD THIS SERVICE (as an example, can be configured more robustly)
+    image: docker.elastic.co/beats/filebeat:7.17.6 # Must match ELK version
+    container_name: filebeat
+    user: root # Needed for Docker socket access
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro # For Docker logs
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro # For Docker logs
+      - ./filebeat.yml:/usr/share/filebeat/filebeat.yml:ro # Mount Filebeat config
+    command: ['filebeat', '-e', '--strict.perms=false'] # Run Filebeat
+    depends_on:
+      elasticsearch:
+        condition: service_healthy # Wait for Elasticsearch
+
 volumes:
   neo4j_data:
   neo4j_logs:
