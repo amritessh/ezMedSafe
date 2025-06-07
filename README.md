@@ -42,6 +42,8 @@ ezMedSafe leverages a modern microservices architecture with a robust set of tec
 
 ### 📐 Architecture Overview
 
+
+```
 graph TB
     subgraph Client["Client Layer"]
         A[User Browser<br/>React App]
@@ -96,7 +98,7 @@ graph TB
     C --> K
     C --> M
     C --> N
-
+```
 
 
 ### ⚙️ Setup and Running (Overall Project)
