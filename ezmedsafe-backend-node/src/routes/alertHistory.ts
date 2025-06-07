@@ -5,7 +5,8 @@ const router = express.Router();
 
 // GET /api/alerts/history - Get all interaction alerts for the authenticated user
 router.get('/', async (req: any, res: any) => {
-  const userId = req.user?.id; // From authMiddleware
+  // const userId = req.user?.id; // From authMiddleware
+  const userId = '123e4567-e89b-12d3-a456-426614174000';
 
   if (!userId) {
     return res.status(401).json({ error: 'Unauthorized: User ID missing from token.' });
