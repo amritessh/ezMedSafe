@@ -46,6 +46,7 @@ ezmedsafe-backend-node/
 ├── Dockerfile             # Docker build instructions for the backend service
 ├── package.json           # Node.js dependencies and scripts
 └── tsconfig.json          # TypeScript compiler configuration
+```
 
 ### ⚙️ Setup and Running
 
@@ -102,6 +103,7 @@ KAFKA_CLIENT_ID="ezmedsafe-backend"
 KAFKA_ALERTS_TOPIC="interaction_alerts_generated"
 KAFKA_CONNECTION_TIMEOUT=30000
 REDIS_URL="redis://redis:6379"
+```
 
 
 🔌 API Endpoints
