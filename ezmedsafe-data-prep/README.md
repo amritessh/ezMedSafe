@@ -62,7 +62,8 @@ Locally (outside Docker Compose, for development/manual execution): From the ezm
 Bash
 
 python embed_rag_data.py
-🐛 Troubleshooting
+
+### 🐛 Troubleshooting
 Check docker logs ezmedsafe-data-prep-1 for any Python runtime errors (e.g., ModuleNotFoundError).
 Ensure all necessary environment variables are set correctly in the .env file.
 Verify your Pinecone index exists and is configured for the correct dimension.
