@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import MedicationInput from '@/components/MedicationInput';
 import PatientContextForm from '@/components/PatientContextForm';
 import { Button } from '@/components/ui/button';
@@ -28,7 +28,7 @@ import {
 import { useAuth } from '@/hooks/useAuth';
 import { patientProfilesApi, interactionsApi } from '@/api/ezmedsafeApi';
 import { toast } from 'sonner';
-import AlertCard from '@/components/AlertCard'; // Import AlertCard
+import AlertCard from '@/components/AlertCard';
 
 function HomePage() {
   const { userId } = useAuth();
@@ -52,7 +52,6 @@ function HomePage() {
         setUserPatientProfiles(profiles);
         if (profiles.length > 0) {
           setSelectedPatientProfileId(profiles[0].id);
-          // Load the full patient context if available for the selected profile
           const selectedProfileDetails = profiles.find(
             (p) => p.id === profiles[0].id
           );
@@ -100,7 +99,6 @@ function HomePage() {
       setUserPatientProfiles((prev) => [...prev, createdProfile]);
       setSelectedPatientProfileId(createdProfile.id);
       setPatientContext({
-        // Set the context for the new profile
         age_group: createdProfile.ageGroup,
         renal_status: createdProfile.renalStatus,
         hepatic_status: createdProfile.hepaticStatus,
@@ -119,10 +117,9 @@ function HomePage() {
   const handlePatientProfileSelectChange = (value) => {
     setSelectedPatientProfileId(value);
     if (value === 'new-profile') {
-      setPatientContext({}); // Clear context for new profile creation
+      setPatientContext({});
       setShowNewPatientModal(true);
     } else {
-      // Load context of selected existing profile
       const selectedProfileDetails = userPatientProfiles.find(
         (p) => p.id === value
       );
@@ -144,7 +141,6 @@ function HomePage() {
       return;
     }
     if (!selectedPatientProfileId && !patientContext.age_group) {
-      // Ensure a profile is chosen or new context entered
       setError('Please select or create a patient profile.');
       toast.error('Please select or create a patient profile.');
       return;
@@ -164,10 +160,10 @@ function HomePage() {
       }
 
       const data = await interactionsApi.check(
-        patientContext, // Always send patientContext for potential new profile or contextual filtering
+        patientContext,
         existingMedications,
         newMedication,
-        patientProfileIdToSend // ONLY send a UUID if an existing profile is truly selected
+        patientProfileIdToSend
       );
       setAlerts(data.alerts || []);
       toast.success('Interaction check complete!');
@@ -181,47 +177,52 @@ function HomePage() {
   };
 
   return (
-    <div className='min-h-screen bg-gray-50 p-6 flex flex-col items-center'>
-      <h1 className='text-5xl font-extrabold text-blue-700 mb-10 tracking-tight'>
+    <div className='min-h-screen flex flex-col items-center p-6 bg-gray-50 dark:bg-gray-900'>
+      {' '}
+      {/* Consistent background */}
+      <h1 className='text-5xl md:text-6xl font-extrabold text-blue-700 dark:text-blue-400 mb-10 tracking-tight text-center'>
+        {' '}
+        {/* Responsive text size */}
         ezMedSafe
       </h1>
-
-      <Card className='w-full max-w-3xl mb-8 p-6'>
+      <Card className='w-full max-w-3xl mb-8 p-6 shadow-xl rounded-lg border-gray-200 dark:border-gray-700 dark:bg-gray-800'>
         {' '}
-        {/* Added p-6 for card content padding */}
-        <CardHeader className='pb-4'>
+        {/* Enhanced card styling */}
+        <CardHeader className='pb-6 border-b border-gray-200 dark:border-gray-700'>
           {' '}
-          {/* Added pb-4 for spacing */}
-          <CardTitle className='text-3xl font-bold text-gray-800'>
+          {/* Bottom border for header */}
+          <CardTitle className='text-3xl font-bold text-gray-800 dark:text-gray-100'>
             Check Drug Interactions
           </CardTitle>
-          <CardDescription className='text-gray-600'>
+          <CardDescription className='text-gray-600 dark:text-gray-400 mt-2'>
             Enter patient context and medications to identify potential
             interactions.
           </CardDescription>
         </CardHeader>
-        <CardContent className='space-y-8'>
+        <CardContent className='pt-6 space-y-8'>
           {' '}
-          {/* Increased space-y for more vertical separation */}
+          {/* Increased top padding and vertical spacing */}
           {/* Patient Profile Selection/Creation */}
           <div className='space-y-4'>
             <Label
               htmlFor='patient-profile-select'
-              className='text-lg font-semibold text-gray-700'
+              className='text-lg font-semibold text-gray-700 dark:text-gray-200'
             >
               Patient Profile
             </Label>
             <div className='flex flex-col md:flex-row gap-4'>
-              {' '}
-              {/* Responsive flex */}
               <Select
                 value={selectedPatientProfileId || ''}
                 onValueChange={handlePatientProfileSelectChange}
               >
-                <SelectTrigger className='flex-grow'>
+                <SelectTrigger className='flex-grow border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white'>
+                  {' '}
+                  {/* Input styling */}
                   <SelectValue placeholder='Select existing profile or create new' />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className='dark:bg-gray-700 dark:text-white'>
+                  {' '}
+                  {/* Dropdown styling */}
                   {userPatientProfiles.map((profile) => (
                     <SelectItem key={profile.id} value={profile.id}>
                       {`Profile: ${profile.ageGroup || 'N/A'}, Renal: ${
@@ -238,7 +239,7 @@ function HomePage() {
               </Select>
               <Button
                 onClick={() => handlePatientProfileSelectChange('new-profile')}
-                className='md:w-auto'
+                className='md:w-auto px-6 py-2.5 bg-blue-700 hover:bg-blue-800 dark:bg-blue-600 dark:hover:bg-blue-700 text-white font-semibold rounded-md transition-colors'
               >
                 {selectedPatientProfileId === 'new-profile' ||
                 userPatientProfiles.length === 0
@@ -247,14 +248,14 @@ function HomePage() {
               </Button>
             </div>
             {selectedPatientProfileId === 'new-profile' && (
-              <p className='text-sm text-blue-500'>
+              <p className='text-sm text-blue-500 dark:text-blue-300 mt-2'>
                 A new profile will be created with the context entered below.
               </p>
             )}
           </div>
           {/* Existing Medications Input */}
           <div className='space-y-4'>
-            <Label className='text-lg font-semibold text-gray-700'>
+            <Label className='text-lg font-semibold text-gray-700 dark:text-gray-200'>
               Existing Medications
             </Label>
             <MedicationInput
@@ -266,19 +267,19 @@ function HomePage() {
                 existingMedications.map((med) => (
                   <span
                     key={med.name}
-                    className='inline-flex items-center px-4 py-2 rounded-full text-sm font-medium bg-blue-100 text-blue-800 transition-colors duration-200 hover:bg-blue-200 cursor-pointer'
+                    className='inline-flex items-center px-4 py-2 rounded-full text-sm font-medium bg-blue-100 text-blue-800 dark:bg-blue-800 dark:text-blue-100 transition-colors duration-200 hover:bg-blue-200 dark:hover:bg-blue-700 cursor-pointer shadow-sm'
                   >
                     {med.name}
                     <button
                       onClick={() => handleRemoveExistingMed(med)}
-                      className='ml-2 text-blue-800 hover:text-blue-600 focus:outline-none'
+                      className='ml-2 text-blue-800 dark:text-blue-100 hover:text-blue-600 dark:hover:text-blue-300 focus:outline-none'
                     >
                       &times;
                     </button>
                   </span>
                 ))
               ) : (
-                <p className='text-gray-500 text-sm'>
+                <p className='text-gray-500 dark:text-gray-400 text-sm'>
                   No existing medications added.
                 </p>
               )}
@@ -286,7 +287,7 @@ function HomePage() {
           </div>
           {/* New Medication Input */}
           <div className='space-y-4'>
-            <Label className='text-lg font-semibold text-gray-700'>
+            <Label className='text-lg font-semibold text-gray-700 dark:text-gray-200'>
               New Medication to Check
             </Label>
             <MedicationInput
@@ -294,62 +295,63 @@ function HomePage() {
               label='New Medication'
             />
             {newMedication && newMedication.name ? (
-              <p className='text-sm text-gray-600'>
+              <p className='text-sm text-gray-600 dark:text-gray-300'>
                 Checking for:{' '}
-                <span className='font-bold text-gray-800'>
+                <span className='font-bold text-gray-800 dark:text-gray-100'>
                   {newMedication.name}
                 </span>
               </p>
             ) : (
-              <p className='text-gray-500 text-sm'>
+              <p className='text-gray-500 dark:text-gray-400 text-sm'>
                 No new medication selected.
               </p>
             )}
           </div>
           <Button
             onClick={handleCheckInteractions}
-            className='w-full py-3 text-lg font-bold'
+            className='w-full py-3 text-lg font-bold bg-green-600 hover:bg-green-700 dark:bg-green-500 dark:hover:bg-green-600 text-white rounded-md shadow-md transition-colors'
             disabled={loading}
           >
             {loading ? 'Checking Interactions...' : 'Check Interactions'}
           </Button>
           {error && (
-            <p className='text-red-500 text-sm text-center mt-2'>{error}</p>
+            <p className='text-red-500 dark:text-red-400 text-sm text-center mt-4 p-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 rounded-md'>
+              {' '}
+              {/* Styled error message */}
+              {error}
+            </p>
           )}
         </CardContent>
       </Card>
-
       {alerts.length > 0 && (
-        <Card className='w-full max-w-3xl p-6'>
+        <Card className='w-full max-w-3xl p-6 shadow-xl rounded-lg border-gray-200 dark:border-gray-700 dark:bg-gray-800'>
           {' '}
-          {/* Added p-6 for card content padding */}
-          <CardHeader className='pb-4'>
-            <CardTitle className='text-3xl font-bold text-orange-700'>
+          {/* Enhanced card styling */}
+          <CardHeader className='pb-4 border-b border-gray-200 dark:border-gray-700'>
+            <CardTitle className='text-3xl font-bold text-orange-700 dark:text-orange-400'>
               Interaction Alerts
             </CardTitle>
-            <CardDescription className='text-gray-600'>
+            <CardDescription className='text-gray-600 dark:text-gray-400 mt-2'>
               AI-powered insights based on your input.
             </CardDescription>
           </CardHeader>
-          <CardContent className='space-y-6'>
-            {' '}
-            {/* Increased space-y between alerts */}
+          <CardContent className='pt-6 space-y-6'>
             {alerts.map((alert, index) => (
-              // Now using AlertCard component for consistent display
               <AlertCard key={index} alert={alert} />
             ))}
           </CardContent>
         </Card>
       )}
-
       {/* New Patient Profile Modal */}
       <Dialog open={showNewPatientModal} onOpenChange={setShowNewPatientModal}>
-        <DialogContent className='sm:max-w-[425px]'>
+        <DialogContent className='sm:max-w-[425px] dark:bg-gray-800 dark:text-white border-gray-700'>
           {' '}
-          {/* Set max-width for smaller modal */}
-          <DialogHeader>
-            <DialogTitle>Create/Edit Patient Profile</DialogTitle>
-            <DialogDescription>
+          {/* Modal styling */}
+          <DialogHeader className='border-b border-gray-200 dark:border-gray-700 pb-4'>
+            <DialogTitle className='text-2xl font-bold dark:text-white'>
+              Create/Edit Patient Profile
+            </DialogTitle>
+            <DialogDescription className='dark:text-gray-400'>
               Enter details for a new or existing patient profile.
             </DialogDescription>
           </DialogHeader>
@@ -357,14 +359,18 @@ function HomePage() {
             patientContext={patientContext}
             onContextChange={setPatientContext}
           />
-          <DialogFooter>
+          <DialogFooter className='border-t border-gray-200 dark:border-gray-700 pt-4'>
             <Button
               onClick={() => setShowNewPatientModal(false)}
               variant='outline'
+              className='dark:text-white dark:border-gray-600 dark:hover:bg-gray-700'
             >
               Cancel
             </Button>
-            <Button onClick={() => handleSavePatientProfile(patientContext)}>
+            <Button
+              onClick={() => handleSavePatientProfile(patientContext)}
+              className='bg-blue-700 hover:bg-blue-800 dark:bg-blue-600 dark:hover:bg-blue-700 text-white'
+            >
               Save Profile
             </Button>
           </DialogFooter>

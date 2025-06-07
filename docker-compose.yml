@@ -157,8 +157,33 @@ services:
       retries: 5
       start_period: 20s
 
+  jenkins: # <--- ADD THIS SERVICE
+    image: jenkins/jenkins:lts
+    privileged: true # Needed for Docker-in-Docker functionality sometimes
+    user: root # Run as root to avoid permissions issues with Docker socket
+    ports:
+      - '8080:8080' # Jenkins UI
+      - '50000:50000' # Jenkins agent communication
+    container_name: jenkins
+    volumes:
+      - jenkins_home:/var/jenkins_home # Persist Jenkins data
+      - /var/run/docker.sock:/var/run/docker.sock # Mount Docker socket for builds
+    environment:
+      - JAVA_OPTS=-Xmx512m -Xms256m # Adjust Java heap size
+    healthcheck:
+      test:
+        [
+          'CMD-SHELL',
+          'wget -q -O /dev/null http://localhost:8080/login || exit 1'
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 60s # Give Jenkins time to start
+
 volumes:
   neo4j_data:
   neo4j_logs:
   backend_node_modules:
   elasticsearch_data:
+  jenkins_home:
