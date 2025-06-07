@@ -1,0 +1,41 @@
+# k8s-manifests/backend-deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend-deployment
+  labels:
+    app: ezmedsafe-backend
+spec:
+  replicas: 1 # Start with 1 replica for MVP
+  selector:
+    matchLabels:
+      app: ezmedsafe-backend
+  template:
+    metadata:
+      labels:
+        app: ezmedsafe-backend
+    spec:
+      containers:
+      - name: backend
+        image: ezmedsafe-backend:latest # Image from your Docker build
+        ports:
+        - containerPort: 3000
+        env: # Replicate environment variables from docker-compose.yml
+          - name: SUPABASE_URL
+            value: "your_supabase_url" # Replace with actual value
+          - name: SUPABASE_ANON_KEY
+            value: "your_supabase_anon_key"
+          # ... Add all other env vars from ezmedsafe-backend-node/.env
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend-service
+spec:
+  selector:
+    app: ezmedsafe-backend
+  ports:
+    - protocol: TCP
+      port: 3000
+      targetPort: 3000
+  type: ClusterIP # Internal service
