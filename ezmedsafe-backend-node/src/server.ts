@@ -11,11 +11,54 @@ import cors from 'cors';
 import { ZodError } from 'zod';
 // Removed Kafka and Redis imports
 import { getGenerativeModel, getEmbeddingModel } from './clients/geminiClient';
+import client from 'prom-client';
 
 dotenv.config({ path: path.resolve(__dirname, '../.env') });
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+
+const register = new client.Registry();
+
+// Register default metrics (e.g., process CPU usage, memory, etc.)
+client.collectDefaultMetrics({ register });
+
+// Example custom counter for API requests
+const httpRequestCounter = new client.Counter({
+  name: 'http_requests_total',
+  help: 'Total number of HTTP requests',
+  labelNames: ['method', 'route', 'status_code'],
+  registers: [register], // Register with our custom registry
+});
+
+// Example custom histogram for request duration
+const httpRequestDurationSeconds = new client.Histogram({
+  name: 'http_request_duration_seconds',
+  help: 'Duration of HTTP requests in seconds',
+  labelNames: ['method', 'route', 'status_code'],
+  buckets: [0.1, 0.5, 1, 3, 5, 10], // Buckets for response time (in seconds)
+  registers: [register],
+});
+
+// Middleware to measure request duration
+app.use((req, res, next) => {
+  const end = httpRequestDurationSeconds.startTimer();
+  res.on('finish', () => {
+    const route = req.route ? req.route.path : req.path; // Capture route if available
+    httpRequestCounter.inc({
+      method: req.method,
+      route: route,
+      status_code: res.statusCode,
+    });
+    end({
+      method: req.method,
+      route: route,
+      status_code: res.statusCode,
+    });
+  });
+  next();
+});
 
 app.use(cors({
   origin: ['http://localhost:5173', 'http://localhost:80'], 
