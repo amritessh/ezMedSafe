@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   backend:
     build:
@@ -15,8 +13,9 @@ services:
       # - /app/node_modules
     depends_on:
       - neo4j
-      - redis
-      - kafka
+      - jaeger
+      # - redis
+      # - kafka
 
     command: sh -c "npx prisma migrate deploy && npm start"
 
@@ -51,69 +50,140 @@ services:
       - '7687:7687'
     environment:
       - NEO4J_AUTH=neo4j/password
-      - NEO4J_dbms_connector_http_listen_address=0.0.0.0:7474
-      - NEO4J_dbms_connector_bolt_listen_address=0.0.0.0:7687
+      # Correct Neo4j 5.x listener environment variables for Docker
+      # - NEO4J_dbms_connector_http_listen_address=0.0.0.0:7474 # Standard for HTTP connector
+      # - NEO4J_dbms_connector_bolt_listen_address=0.0.0.0:7687
+      # - NEO4J_dbms_mode=SINGLE # Standard for Bolt connector
+      # Add default listen address to ensure it binds broadly
+      # - NEO4J_dbms_default_listen_address=0.0.0.0
+      # Optional: Set memory limits if needed for stability on lower-res systems
+      # - NEO4J_dbms_memory_heap_initial__size=512M
+      # - NEO4J_dbms_memory_heap_max__size=512M
     volumes:
       - neo4j_data:/data
       - neo4j_logs:/logs
     healthcheck:
-      test: ['CMD-SHELL', 'wget -q -0 http://localhost:7474/ || exit 1']
+      test:
+        ['CMD-SHELL', 'wget -q -O /dev/null http://localhost:7474/ || exit 1']
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 40s
 
-  redis:
-    image: redis:7.4.0-alpine
-    container_name: ezmedsafe-redis
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
     ports:
-      - '6379:6379'
-    healthcheck:
-      test: ['CMD', 'redis-cli', 'ping']
-      interval: 10s
-      timeout: 50s
-      retries: 5
-
-  zookeeper:
-    image: confluentinc/cp-zookeeper:7.8.0
-    container_name: zookeeper
-    ports:
-      - '2181:2181'
-    environment:
-      - ZOOKEEPER_CLIENT_PORT=2181
-      - ZOOKEEPER_TICK_TIME=2000
-  kafka:
-    image: confluentinc/cp-kafka:7.8.0
-    container_name: kafka
-    ports:
-      - '9092:9092'
-    environment:
-      - KAFKA_BROKER_ID=1
-      - KAFKA_ZOOKEEPER_CONNECT=zookeeper:2181
-      - KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:9092
-      - KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
-      - KAFKA_INTER_BROKER_LISTENER_NAME=PLAINTEXT
-      - KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=1
+      - '9090:9090'
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+    command: '--config.file=/etc/prometheus/prometheus.yml'
     depends_on:
-      - zookeeper
+      - backend
 
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    ports:
+      - '3001:3000'
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    depends_on:
+      - prometheus
+
+  elasticsearch: # <--- UPDATE THIS SERVICE
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.17.6
+    container_name: elasticsearch
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - ES_JAVA_OPTS=-Xms1g -Xmx1g # <--- INCREASED MEMORY TO 1GB
+    ports:
+      - '9200:9200'
+      - '9300:9300'
+    volumes:
+      - elasticsearch_data:/usr/share/elasticsearch/data
+    healthcheck: # <--- INCREASED PATIENCE FOR HEALTHCHECK
+      test:
+        [
+          'CMD-SHELL',
+          'curl -s -f http://localhost:9200/_cluster/health?wait_for_status=yellow || exit 1'
+        ]
+      interval: 10s
+      timeout: 20s # Increased timeout
+      retries: 15 # Increased retries
+      start_period: 90s # Increased start_period to 90 seconds (1.5 minutes)
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:7.17.6
+    container_name: kibana
+    ports:
+      - '5601:5601'
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+
+  filebeat:
+    image: docker.elastic.co/beats/filebeat:7.17.6
+    container_name: filebeat
+    user: root
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - ./filebeat.yml:/usr/share/filebeat/filebeat.yml:ro
+    command: ['filebeat', '-e', '--strict.perms=false']
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    container_name: jaeger
+    ports:
+      - '4317:4317' # OTLP gRPC collector
+      - '4318:4318' # OTLP HTTP collector
+      - '16686:16686' # Jaeger UI
+      - '14250:14250' # gRPC collector
+    environment:
+      - COLLECTOR_OTLP_ENABLED=true
+    healthcheck:
+      test:
+        ['CMD-SHELL', 'wget -q -O /dev/null http://localhost:16686/ || exit 1']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  jenkins: # <--- ADD THIS SERVICE
+    image: jenkins/jenkins:lts
+    privileged: true # Needed for Docker-in-Docker functionality sometimes
+    user: root # Run as root to avoid permissions issues with Docker socket
+    ports:
+      - '8080:8080' # Jenkins UI
+      - '50000:50000' # Jenkins agent communication
+    container_name: jenkins
+    volumes:
+      - jenkins_home:/var/jenkins_home # Persist Jenkins data
+      - /var/run/docker.sock:/var/run/docker.sock # Mount Docker socket for builds
+    environment:
+      - JAVA_OPTS=-Xmx512m -Xms256m # Adjust Java heap size
     healthcheck:
       test:
         [
           'CMD-SHELL',
-          'kafka-topics --bootstrap-server localhost:9092 --list || exit 1'
+          'wget -q -O /dev/null http://localhost:8080/login || exit 1'
         ]
-      interval: 1m30s
-      timeout: 30s
-      retries: 5
-      start_period: 30s
-
-  # kafka-ui:
-  #   image: obsidiandynamics/kafdrop:2.0.0
-  #   container_name: kafka-ui
-  #   ports:
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 60s # Give Jenkins time to start
 
 volumes:
   neo4j_data:
   neo4j_logs:
-  backend_node_modules: # <-- NEW named volume
+  backend_node_modules:
+  elasticsearch_data:
+  jenkins_home:

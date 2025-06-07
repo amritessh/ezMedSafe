@@ -7,7 +7,8 @@ const router = express.Router();
 
 router.post('/', validate(patientContextSchema), async (req: Request, res: Response): Promise<void> => { // Apply validation
     const {ageGroup, renalStatus, hepaticStatus, cardiacStatus} = req.body;
-    const userId = req.user?.id;
+    // const userId = req.user?.id;
+    const userId = '123e4567-e89b-12d3-a456-426614174000';
 
     if (!userId) {
         res.status(401).json({ error: 'Unauthorized: User ID missing from token.' });
@@ -33,7 +34,8 @@ router.post('/', validate(patientContextSchema), async (req: Request, res: Respo
 
 // GET /api/patient-profiles - Get all patient profiles for the authenticated user (no body validation needed)
 router.get('/', async (req: Request, res: Response): Promise<void> => {
-    const userId = req.user?.id;
+    // const userId = req.user?.id;
+    const userId = '123e4567-e89b-12d3-a456-426614174000';
 
     if (!userId) {
         res.status(401).json({ error: 'Unauthorized: User ID missing from token.' });

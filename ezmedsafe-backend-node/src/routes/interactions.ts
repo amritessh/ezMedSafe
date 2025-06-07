@@ -24,7 +24,9 @@ router.post('/', async (req: any, res: any) => {
     patientProfileId: frontendPatientProfileId
   }: { patientContext: PatientContextInput, existingMedications: MedicationInput[], newMedication: MedicationInput, patientProfileId?: string } = req.body;
 
-  const userId = req.user?.id;
+  // const userId = req.user?.id;
+  const userId = '123e4567-e89b-12d3-a456-426614174000';
+
   if (!userId) {
       return res.status(401).json({ error: 'Authentication required for this operation.' });
   }

@@ -1,0 +1,21 @@
+# filebeat.yml
+filebeat.inputs:
+- type: container
+  paths:
+    - /var/lib/docker/containers/*/*.log
+  processors:
+    - add_fields:
+        target: "container"
+        fields:
+          ecs.version: 1.6.0 # Add ECS compatibility for Kibana
+    - add_docker_metadata: # Adds Docker container metadata
+        host: "unix:///var/run/docker.sock"
+        ecs_fields: true
+        include_labels: ["service"] # Include service labels for identification
+
+output.elasticsearch:
+  hosts: ["elasticsearch:9200"] # Connect to Elasticsearch service
+  # username: "elastic" # Uncomment and configure if security enabled
+  # password: "changeme" # Uncomment and configure if security enabled
+
+logging.level: info
