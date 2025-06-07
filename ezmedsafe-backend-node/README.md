@@ -29,6 +29,7 @@ This repository contains the Node.js (Express.js, TypeScript) backend service fo
 
 ### 📂 Project Structure
 
+```
 ezmedsafe-backend-node/
 ├── src/
 │   ├── agents/            # Implementations of AI agents (KGQAgent, ERAAgent, EGAAgent)
@@ -103,7 +104,7 @@ KAFKA_CONNECTION_TIMEOUT=30000
 REDIS_URL="redis://redis:6379"
 
 
-```🔌 API Endpoints
+🔌 API Endpoints
 All API endpoints are prefixed with /api. For example, http://localhost:3000/api/auth/login.
 
 GET /health: Basic server health check.
