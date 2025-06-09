@@ -105,7 +105,7 @@ graph TB
 
 1.  **Clone the Repository:**
     ```bash
-    git clone [https://github.com/your-repo/ezMedSafe.git](https://github.com/your-repo/ezMedSafe.git) # Replace with your actual repo URL
+    git clone https://github.com/amritessh/ezMedSafe.git 
     cd ezMedSafe
     ```
 
