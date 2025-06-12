@@ -30,78 +30,54 @@
 - **Message Streaming** - Apache Kafka for scalable event processing
 - **High Performance** - Redis caching for sub-second response times
 
-### 🔮 Future-Ready Architecture
-- **Model Context Protocol** - Prepared for MCP standard integration
-- **Microservices Design** - Kubernetes-ready containerized services
-- **CI/CD Pipeline** - Jenkins automation for continuous deployment
+### 🔮 Model Context Protocol (MCP) Integration
+**Integral to its advanced AI architecture**, ezMedSafe leverages the **Model Context Protocol (MCP)**, an open standard, open-source framework (introduced by Anthropic in November 2024) that standardizes how AI models integrate and share data with external tools, systems, and data sources. The EGA Agent orchestrates the Google Gemini LLM's interactions by enabling it to make structured tool calls to the KGQ Agent and ERA Agent, and process their standardized results in a multi-turn reasoning process. This fundamental integration ensures robust, interoperable, and formalized LLM orchestration and tool utilization within the system.
 
-## 🛠️ Tech Stack
-
-ezMedSafe leverages a modern microservices architecture with a robust set of technologies:
-
-* **Programming Languages:** Node.js (TypeScript), React (JavaScript), Python
-* **Backend Frameworks:** Express.js
-* **Databases:** PostgreSQL (Supabase), Neo4j, Pinecone
-* **ORM:** Prisma
-* **AI/ML & NLP:** Google Gemini, LangChain.js
-* **Message Broker:** Apache Kafka (with Zookeeper)
-* **Caching:** Redis
-* **Frontend Framework:** React (with Vite)
-* **Frontend Routing:** React Router DOM
-* **Styling:** Tailwind CSS
-* **Containerization:** Docker
-* **Orchestration:** Kubernetes (K3s)
-* **CI/CD:** Jenkins
-* **Monitoring:** Prometheus, Grafana
-* **Centralized Logging:** ELK Stack (Elasticsearch, Logstash/Filebeat, Kibana)
-* **Distributed Tracing:** OpenTelemetry (with Jaeger)
-* **Version Control:** Git
-
-## 📐 Architecture Overview
+## 🏗️ Architecture
 
 ```mermaid
 graph TB
-    subgraph Client["Client Layer"]
+    subgraph Client["🖥️ Client Layer"]
         A[User Browser<br/>React App]
     end
 
-    subgraph Frontend["Frontend Service"]
-        B[Nginx<br/>Port 80<br/>Serves React App<br/>Proxies /api/* to backend]
+    subgraph Frontend["🎨 Frontend"]
+        B[Nginx<br/>:80<br/>Static Assets<br/>API Proxy]
     end
 
-    subgraph Backend["Backend Services"]
-        C[Node.js/Express API<br/>ezmedsafe-backend-node<br/>Port 3000]
-        D[Data Prep Service<br/>ezmedsafe-data-prep<br/>Python]
+    subgraph Backend["⚙️ Backend Services"]
+        C[Node.js API<br/>:3000<br/>Express + TypeScript]
+        D[Data Prep<br/>Python Service<br/>Vector Embeddings]
     end
 
-    subgraph Storage["Data Storage Layer"]
-        E[(Supabase<br/>PostgreSQL<br/>Cloud Service)]
-        F[(Neo4j<br/>Knowledge Graph<br/>7474/7687)]
-        G[(Pinecone<br/>Vector DB<br/>Cloud Service)]
-        H[(Redis<br/>Cache<br/>6379)]
+    subgraph Storage["💾 Data Layer"]
+        E[(Supabase<br/>PostgreSQL<br/>Primary DB)]
+        F[(Neo4j<br/>Knowledge Graph<br/>:7474/:7687)]
+        G[(Pinecone<br/>Vector Search<br/>Cloud)]
+        H[(Redis<br/>Cache<br/>:6379)]
     end
 
-    subgraph AI["AI/ML Services"]
-        I[Google Gemini<br/>LLM & Embeddings<br/>Cloud Service]
+    subgraph AI["🤖 AI Services"]
+        I[Google Gemini<br/>LLM & Embeddings<br/>Cloud API]
     end
 
-    subgraph Queue["Message Queue"]
-        J[Kafka<br/>9092<br/>+ Zookeeper]
+    subgraph Queue["📨 Messaging"]
+        J[Apache Kafka<br/>:9092<br/>+ Zookeeper]
     end
 
-    subgraph Monitor["Monitoring & Observability"]
-        K[Prometheus<br/>9090]
-        L[Grafana<br/>3001]
-        M[ELK Stack<br/>Elasticsearch 9200<br/>Kibana 5601]
-        N[Jaeger<br/>Tracing<br/>16686]
+    subgraph Monitor["📊 Observability"]
+        K[Prometheus<br/>:9090]
+        L[Grafana<br/>:3001]
+        M[ELK Stack<br/>Elasticsearch :9200<br/>Kibana :5601]
+        N[Jaeger<br/>Tracing<br/>:16686]
     end
 
-    subgraph CICD["CI/CD"]
-        O[Jenkins<br/>8080]
+    subgraph CICD["🔧 CI/CD"]
+        O[Jenkins<br/>:8080]
     end
 
-    A -->|HTTP/HTTPS| B
-    B -->|Proxy /api/*| C
+    A -->|HTTPS| B
+    B -->|/api/*| C
     C --> E
     C --> F
     C --> G
@@ -114,7 +90,52 @@ graph TB
     C --> K
     C --> M
     C --> N
+
+    style A fill:#e1f5fe
+    style I fill:#f3e5f5
+    style E fill:#e8f5e8
+    style F fill:#fff3e0
+    style G fill:#fce4ec
 ```
+
+## 🛠️ Technology Stack
+
+### Backend & APIs
+![Node.js](https://img.shields.io/badge/Node.js-18+-339933?style=flat&logo=node.js&logoColor=white)
+![TypeScript](https://img.shields.io/badge/TypeScript-4.9+-3178C6?style=flat&logo=typescript&logoColor=white)
+![Express.js](https://img.shields.io/badge/Express.js-4.18+-000000?style=flat&logo=express&logoColor=white)
+![Python](https://img.shields.io/badge/Python-3.9+-3776AB?style=flat&logo=python&logoColor=white)
+
+### Frontend & UI
+![React](https://img.shields.io/badge/React-18+-61DAFB?style=flat&logo=react&logoColor=black)
+![Vite](https://img.shields.io/badge/Vite-4.0+-646CFF?style=flat&logo=vite&logoColor=white)
+![TailwindCSS](https://img.shields.io/badge/Tailwind_CSS-3.0+-38B2AC?style=flat&logo=tailwind-css&logoColor=white)
+![React Router](https://img.shields.io/badge/React_Router-6+-CA4245?style=flat&logo=react-router&logoColor=white)
+
+### Databases & Storage
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15+-336791?style=flat&logo=postgresql&logoColor=white)
+![Supabase](https://img.shields.io/badge/Supabase-3ECF8E?style=flat&logo=supabase&logoColor=white)
+![Neo4j](https://img.shields.io/badge/Neo4j-4.4+-008CC1?style=flat&logo=neo4j&logoColor=white)
+![Pinecone](https://img.shields.io/badge/Pinecone-Vector_DB-FF6B6B?style=flat)
+![Redis](https://img.shields.io/badge/Redis-7.0+-DC382D?style=flat&logo=redis&logoColor=white)
+
+### AI & Machine Learning
+![Google Gemini](https://img.shields.io/badge/Google_Gemini-4285F4?style=flat&logo=google&logoColor=white)
+![LangChain](https://img.shields.io/badge/LangChain.js-1C3C3C?style=flat)
+![MCP](https://img.shields.io/badge/Model_Context_Protocol-FF6B35?style=flat)
+
+### Infrastructure & DevOps
+![Docker](https://img.shields.io/badge/Docker-2496ED?style=flat&logo=docker&logoColor=white)
+![Kubernetes](https://img.shields.io/badge/Kubernetes-326CE5?style=flat&logo=kubernetes&logoColor=white)
+![Apache Kafka](https://img.shields.io/badge/Apache_Kafka-231F20?style=flat&logo=apache-kafka&logoColor=white)
+![Nginx](https://img.shields.io/badge/Nginx-009639?style=flat&logo=nginx&logoColor=white)
+
+### Monitoring & Observability
+![Prometheus](https://img.shields.io/badge/Prometheus-E6522C?style=flat&logo=prometheus&logoColor=white)
+![Grafana](https://img.shields.io/badge/Grafana-F46800?style=flat&logo=grafana&logoColor=white)
+![Elasticsearch](https://img.shields.io/badge/Elasticsearch-005571?style=flat&logo=elasticsearch&logoColor=white)
+![Kibana](https://img.shields.io/badge/Kibana-005571?style=flat&logo=kibana&logoColor=white)
+![Jaeger](https://img.shields.io/badge/Jaeger-66CFE3?style=flat)
 
 ## 🚀 Quick Start
 
@@ -151,33 +172,35 @@ You'll need access to these services:
    
    Update the `.env` file with your credentials:
    ```env
-   # Backend Configuration
+   # Backend
    BACKEND_PORT=3000
-   
+
    # Supabase (PostgreSQL)
-   SUPABASE_URL="https://your-project.supabase.co"
-   SUPABASE_ANON_KEY="your_supabase_anon_key"
-   SUPABASE_SERVICE_KEY="your_supabase_service_key"
-   DIRECT_DATABASE_URL="postgresql://postgres.your-project:password@aws-0-region.pooler.supabase.com:5432/postgres"
-   DATABASE_URL="postgresql://postgres.your-project:password@aws-0-region.pooler.supabase.com:6543/postgres?pgbouncer=true"
-   
-   # Neo4j Configuration
-   NEO4J_URI="bolt://neo4j:7687"
+   SUPABASE_URL="https://fdkmhvubulehmolbcudn.supabase.co" # Example
+   SUPABASE_ANON_KEY="YOUR_SUPABASE_ANON_KEY"
+   SUPABASE_SERVICE_KEY="YOUR_SUPABASE_SERVICE_KEY"
+   DIRECT_DATABASE_URL="postgresql://postgres.fdkmhvubulehmolbcudn:YOUR_DB_PASSWORD@aws-0-us-east-2.pooler.supabase.com:5432/postgres"
+   DATABASE_URL="postgresql://postgres.fdkmhvubulehmolbcudn:YOUR_DB_PASSWORD@aws-0-us-east-2.pooler.supabase.com:6543/postgres?pgbouncer=true"
+
+   # Neo4j
+   NEO4J_URI="bolt://neo4j:7687" # For Docker Compose internal communication
    NEO4J_USERNAME="neo4j"
    NEO4J_PASSWORD="your_neo4j_password"
-   
-   # Pinecone Vector Database
-   PINECONE_API_KEY="your_pinecone_api_key"
+
+   # Pinecone
+   PINECONE_API_KEY="YOUR_PINECONE_API_KEY"
    PINECONE_INDEX_NAME="ezmedsafe-rag-index"
-   
-   # Google Gemini AI
-   GEMINI_API_KEY="your_gemini_api_key"
-   
-   # Authentication
-   API_KEY="your_secure_api_key"
-   
-   # Redis & Kafka (Docker internal)
+
+   # Google Gemini
+   GEMINI_API_KEY="YOUR_GEMINI_API_KEY"
+
+   # API Key for authentication (if re-enabled, or for Postman testing)
+   API_KEY="1234"
+
+   # Redis (for Docker Compose internal communication)
    REDIS_URL="redis://redis:6379"
+
+   # Kafka (for Docker Compose internal communication)
    KAFKA_BROKER="kafka:9092"
    KAFKA_CLIENT_ID="ezmedsafe-backend"
    KAFKA_ALERTS_TOPIC="interaction_alerts_generated"
