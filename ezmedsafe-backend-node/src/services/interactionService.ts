@@ -1,122 +1,152 @@
-// src/services/interactionService.ts
-import { KGQAgent } from '../agents/kgqAgent';
-import { ERAAgent } from '../agents/eraAgent';
-import { EGAAgent } from '../agents/egaAgent'; // Import the new EGAAgent
+// ezmedsafe-backend-node/src/services/interactionService.ts
+import { EGAAgent } from '../agents/egaAgent';
 import prisma from '../clients/prismaClient';
-import { PatientContextInput, MedicationInput, DDIAlert, DDIQueryResult } from '../types';
+import {
+    DDIAlert,
+    PatientContextInput,
+    MedicationInput,
+    LLMConversationState,
+    LLMMessage,
+} from '../types';
 import { getKafkaProducer } from '../clients/kafkaClient';
 import crypto from 'crypto';
 
-const kgqAgent = new KGQAgent();
-const eraAgent = new ERAAgent();
-const egaAgent = new EGAAgent(); // Initialize EGAAgent
+const egaAgent = new EGAAgent(); // Instantiate the refactored EGAAgent
 
 const INTERACTION_ALERTS_TOPIC = process.env.KAFKA_ALERTS_TOPIC || 'interaction_alerts_generated';
 
 export class InteractionService {
-  async checkAndPersistInteractions(
-    userId: string,
-    patientProfileId: string,
-    patientContext: PatientContextInput,
-    existingMedications: MedicationInput[],
-    newMedication: MedicationInput
-  ): Promise<DDIAlert[]> {
-    const alertsToReturn: DDIAlert[] = []; // Collect alerts to return
+    async checkAndPersistInteractions(
+        userId: string,
+        patientProfileId: string,
+        patientContext: PatientContextInput,
+        existingMedications: MedicationInput[],
+        newMedication: MedicationInput
+    ): Promise<DDIAlert[]> {
+        const alertsToReturn: DDIAlert[] = [];
 
-    try {
-      // 1. Ensure Medication exists in DB (or create it)
-      //    The `newMedication` input might just have `name`.
-      //    You need to find its database `id` or create it if it's new.
-      let newMedicationRecord;
-      // Example: Find by name, or create if not found
-      newMedicationRecord = await prisma.medication.upsert({
-          where: { rx_norm_id: newMedication.rxNormId || '' }, // Use rx_norm_id as unique identifier
-          update: {
-              name: newMedication.name,
-          },
-          create: {
-              id: crypto.randomUUID(), // Generate a new UUID
-              name: newMedication.name,
-              rx_norm_id: newMedication.rxNormId || null,
-          }
-      });
+        try {
+            // 1. Ensure Medication exists and create Prescription (no change here)
+            let newMedicationRecord = await prisma.medication.upsert({
+                where: { rx_norm_id: newMedication.rxNormId || '' },
+                update: { name: newMedication.name },
+                create: { id: crypto.randomUUID(), name: newMedication.name, rx_norm_id: newMedication.rxNormId || null }
+            });
+            const newPrescription = await prisma.prescription.create({
+                data: {
+                    patientProfileId: patientProfileId,
+                    medicationId: newMedicationRecord.id,
+                    type: 'NEW',
+                },
+            });
+            const prescriptionId = newPrescription.id;
 
-      // 2. Create the Prescription record for the new medication
-      const newPrescription = await prisma.prescription.create({
-        data: {
-          patientProfileId: patientProfileId,
-          medicationId: newMedicationRecord.id,
-          type: 'NEW',
-        },
-      });
+            // 2. Prepare initial conversation state for the LLM
+            const allMedicationNames = [
+                ...existingMedications.map(m => m.name),
+                newMedication.name
+            ];
 
-      // Now, newPrescription.id contains the valid UUID needed for InteractionAlert
-      const prescriptionId = newPrescription.id;
+            // Initial user prompt to the LLM to start the DDI analysis
+            const initialUserPrompt: LLMMessage = {
+                role: 'user',
+                parts: [{
+                    text: `Patient has existing medications: ${existingMedications.map(m => m.name).join(', ')}. ` +
+                          `New medication proposed: ${newMedication.name}. Patient context: Age Group: ${patientContext.age_group || 'Not specified'}, ` +
+                          `Renal Impairment: ${patientContext.renal_status ? 'Yes' : 'No'}, ` +
+                          `Hepatic Impairment: ${patientContext.hepatic_status ? 'Yes' : 'No'}, ` +
+                          `Cardiac Disease: ${patientContext.cardiac_status ? 'Yes' : 'No'}. ` +
+                          `Please determine if there are any drug interactions and generate a DDI Alert.`
+                }]
+            };
 
-      // 3. Perform DDI check (this is where KGQAgent comes in)
-      const allMedicationNames = [
-          ...existingMedications.map(m => m.name),
-          newMedication.name
-      ];
+            let conversationState: LLMConversationState = {
+                history: [initialUserPrompt], // Start history with the user's request
+                initialContext: { // Preserve initial context for potential LLM use or fallback
+                    patientContext: patientContext,
+                    allMedicationNames: allMedicationNames
+                }
+            };
 
-      // Assuming KGQAgent.getDDIContext returns relevant interaction data
-      const ddiResults = await kgqAgent.getDDIContext(allMedicationNames, patientContext);
+            let finalAlert: DDIAlert | null = null;
+            let maxTurns = 10; // Set a limit to prevent infinite loops during LLM interaction
 
-      if (ddiResults.length > 0) {
-        // Process DDI results into alerts
-        for (const ddi of ddiResults) {
-          const alert: DDIAlert = {
-            severity: 'Moderate',
-            drugA: ddi.drugA,
-            drugB: ddi.drugB,
-            explanation: `Interaction between ${ddi.drugA} and ${ddi.drugB}: ${ddi.mechanism}`,
-            clinicalImplication: `Clinical consequences: ${ddi.clinicalConsequences.join(', ')}`,
-            recommendation: 'Please consult with a healthcare provider before proceeding with this medication combination.'
-          };
-          alertsToReturn.push(alert);
+            // Orchestrate the multi-turn LLM interaction
+            for (let i = 0; i < maxTurns; i++) {
+                const result = await egaAgent.orchestrateDDIAlertGeneration(conversationState);
 
-          // Persist the alert to the database
-          const createdAlert = await prisma.interactionAlert.create({
-            data: {
-              userId: userId,
-              patientProfileId: patientProfileId,
-              prescriptionId: prescriptionId,
-              alertData: JSON.parse(JSON.stringify(alert)), // Convert to plain object for JSON storage
-            },
-          });
-          // You might log createdAlert.id or something here
+                if ('severity' in result) {
+                    // The LLM has returned a final DDIAlert
+                    finalAlert = result;
+                    break;
+                } else {
+                    // The LLM has returned an updated conversation state (e.g., after a tool call)
+                    conversationState = result;
+                    // Add a safety check: if history isn't growing, break to prevent infinite loops
+                    if (i > 0 && conversationState.history.length <= initialUserPrompt.parts.length) {
+                        console.warn("Conversation history not growing, potential loop. Breaking.");
+                        break;
+                    }
+                }
+            }
+
+            if (finalAlert) {
+                alertsToReturn.push(finalAlert);
+            } else {
+                // Fallback if LLM failed to produce a final alert within max turns
+                console.warn("LLM did not produce a final alert within max turns. Generating a fallback alert.");
+                const fallbackAlert: DDIAlert = {
+                    severity: 'Low',
+                    drugA: newMedication.name,
+                    drugB: 'N/A', // Cannot definitively determine drugB without LLM output
+                    explanation: 'Failed to generate a detailed alert from AI after multiple attempts.',
+                    clinicalImplication: 'AI alert generation unsuccessful.',
+                    recommendation: 'Please manually review medications and patient context for interactions.',
+                };
+                alertsToReturn.push(fallbackAlert);
+            }
+
+            // 4. Persist the generated alerts and publish to Kafka (as before)
+            for (const alert of alertsToReturn) {
+                await prisma.interactionAlert.create({
+                    data: {
+                        userId: userId,
+                        patientProfileId: patientProfileId,
+                        prescriptionId: prescriptionId,
+                        alertData: JSON.parse(JSON.stringify(alert)), // Store as JSON in DB
+                    },
+                });
+
+                try {
+                    const producer = getKafkaProducer();
+                    const eventPayload = {
+                        type: 'interaction_alert_generated',
+                        alertId: crypto.randomUUID(), // Generate a unique ID for the alert
+                        userId: userId,
+                        patientProfileId: patientProfileId,
+                        alertDetails: alert,
+                        timestamp: new Date().toISOString()
+                    };
+                    producer.produce(
+                        INTERACTION_ALERTS_TOPIC,
+                        null,
+                        Buffer.from(JSON.stringify(eventPayload)),
+                        eventPayload.alertId, // Use alertId as Kafka key
+                        Date.now()
+                    );
+                    console.log(`Published alert event to Kafka topic: ${INTERACTION_ALERTS_TOPIC}`);
+                } catch (kafkaError) {
+                    console.error('Failed to publish Kafka event:', kafkaError);
+                }
+            }
+
+            return alertsToReturn;
+
+        } catch (error) {
+            console.error('Error in InteractionService.checkAndPersistInteractions:', error);
+            throw error;
         }
-      } else {
-        // No DDI alerts found
-        const noAlertData: DDIAlert = {
-          severity: 'Low',
-          drugA: newMedication.name,
-          drugB: 'N/A',
-          explanation: 'No significant drug-drug interactions found for the new medication.',
-          clinicalImplication: 'The medication appears safe to use with current medications.',
-          recommendation: 'Continue monitoring for any adverse effects.'
-        };
-        alertsToReturn.push(noAlertData);
-        // Still persist a "no alert" entry for auditing if desired
-        await prisma.interactionAlert.create({
-          data: {
-            userId: userId,
-            patientProfileId: patientProfileId,
-            prescriptionId: prescriptionId,
-            alertData: JSON.parse(JSON.stringify(noAlertData)),
-          },
-        });
-      }
-
-      // ... (handle other types of alerts, like ERA, EGA if applicable) ...
-
-      return alertsToReturn;
-
-    } catch (error) {
-      console.error('Error checking interactions and persisting:', error);
-      throw error; // Re-throw for handling by the route
     }
-  }
 }
 
 
