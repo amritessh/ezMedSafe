@@ -1,3 +1,5 @@
+import { SchemaType } from "@google/generative-ai";
+
 export interface PatientContextInput {
 
   age_group?: 'Pediatric' | 'Adult' | 'Elderly';
@@ -40,13 +42,13 @@ export interface ToolFunction {
   name: string;
   description: string;
   parameters: {
-      type: "object";
+      type: SchemaType;
       properties: { 
           [key: string]: { 
-              type: string; 
+              type: SchemaType; 
               description: string; 
-              items?: { type: string };
-              properties?: { [key: string]: { type: string; description: string; enum?: string[] } };
+              items?: { type: SchemaType };
+              properties?: { [key: string]: { type: SchemaType; description: string; enum?: string[] } };
               enum?: string[];
               default?: any;
           } 

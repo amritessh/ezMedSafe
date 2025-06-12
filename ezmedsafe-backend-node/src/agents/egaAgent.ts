@@ -1,5 +1,6 @@
 // ezmedsafe-backend-node/src/agents/egaAgent.ts
 import { getGenerativeModel } from "../clients/geminiClient";
+import { SchemaType, FunctionDeclaration, Tool } from "@google/generative-ai";
 import {
     DDIAlert,
     LLMConversationState,
@@ -28,35 +29,59 @@ export class EGAAgent {
                 name: "kg_query",
                 description: "Queries the Knowledge Graph for direct drug-drug interactions, mechanisms, consequences, and patient-specific exacerbations given a list of medication names and patient context.",
                 parameters: {
-                    type: "object" as const,
+                    type: SchemaType.OBJECT,
                     properties: {
-                        medications: { type: "array" as const, description: "List of medication names (strings) to check for interactions.", items: { type: "string" as const } },
+                        medications: { 
+                            type: SchemaType.ARRAY, 
+                            description: "List of medication names (strings) to check for interactions.", 
+                            items: { type: SchemaType.STRING } 
+                        },
                         patientContext: {
-                            type: "object" as const,
+                            type: SchemaType.OBJECT,
                             description: "Patient's relevant physiological context (renal, hepatic, cardiac status) and age group.",
                             properties: {
-                                age_group: { type: "string" as const, description: "Patient's age group category", enum: ["Child", "Adult", "Elderly"] },
-                                renal_status: { type: "boolean" as const, description: "Whether patient has renal impairment" },
-                                hepatic_status: { type: "boolean" as const, description: "Whether patient has hepatic impairment" },
-                                cardiac_status: { type: "boolean" as const, description: "Whether patient has cardiac impairment" }
+                                age_group: { 
+                                    type: SchemaType.STRING, 
+                                    description: "Patient's age group category", 
+                                    enum: ["Child", "Adult", "Elderly"] 
+                                },
+                                renal_status: { 
+                                    type: SchemaType.BOOLEAN, 
+                                    description: "Whether patient has renal impairment" 
+                                },
+                                hepatic_status: { 
+                                    type: SchemaType.BOOLEAN, 
+                                    description: "Whether patient has hepatic impairment" 
+                                },
+                                cardiac_status: { 
+                                    type: SchemaType.BOOLEAN, 
+                                    description: "Whether patient has cardiac impairment" 
+                                }
                             }
                         }
                     },
                     required: ["medications", "patientContext"]
-                },
+                }
             },
             {
                 name: "era_retrieve",
                 description: "Retrieves evidence-based text snippets from the Pinecone vector database based on a semantic query related to drug interactions or effects.",
                 parameters: {
-                    type: "object" as const,
+                    type: SchemaType.OBJECT,
                     properties: {
-                        query: { type: "string" as const, description: "The semantic query string to find relevant evidence (e.g., 'interaction between X and Y mechanism')." },
-                        topK: { type: "number" as const, description: "Optional. Number of top results to retrieve (default 3).", default: 3 }
+                        query: { 
+                            type: SchemaType.STRING, 
+                            description: "The semantic query string to find relevant evidence (e.g., 'interaction between X and Y mechanism')." 
+                        },
+                        topK: { 
+                            type: SchemaType.NUMBER, 
+                            description: "Optional. Number of top results to retrieve (default 3).", 
+                            default: 3 
+                        }
                     },
                     required: ["query"]
-                },
-            },
+                }
+            }
         ];
     }
 
@@ -122,28 +147,36 @@ export class EGAAgent {
         try {
             const result = await model.generateContent({
                 contents: conversationContent.map(convertToGeminiContent),
-                tools: tools.map(tool => ({
-                    functionDeclarations: [{
+                tools: [{
+                    functionDeclarations: tools.map(tool => ({
                         name: tool.name,
                         description: tool.description,
-                        parameters: tool.parameters
-                    }]
-                }))
+                        parameters: {
+                            type: SchemaType.OBJECT,
+                            properties: tool.parameters.properties,
+                            required: tool.parameters.required
+                        }
+                    })) as FunctionDeclaration[]
+                }] as Tool[]
             });
 
-            const responseParts = result.response.parts;
+            const response = result.response;
+            const candidates = response.candidates;
+            if (!candidates || candidates.length === 0) {
+                throw new Error("No response from model");
+            }
 
-            // Check if the LLM's response contains tool calls
-            if (responseParts && responseParts.length > 0 && responseParts[0].tool_calls) {
-                const toolCalls = responseParts[0].tool_calls;
-                if (!toolCalls || toolCalls.length === 0) {
-                    throw new Error("LLM returned empty tool calls array.");
-                }
+            const candidate = candidates[0];
+            const content = candidate.content;
+            if (!content || !content.parts || content.parts.length === 0) {
+                throw new Error("No content in response");
+            }
 
-                // Assuming LLM makes one tool call at a time for simplicity in this example
+            const part = content.parts[0];
+            if (part.functionCall) {
                 const llmRequestedToolCall: LLMToolCall = {
-                    tool_name: toolCalls[0].functionCall.name,
-                    parameters: toolCalls[0].functionCall.args,
+                    tool_name: part.functionCall.name,
+                    parameters: part.functionCall.args
                 };
 
                 // Add LLM's tool_code request to history
@@ -183,11 +216,9 @@ export class EGAAgent {
 
                 // Return the updated state, indicating more turns are needed
                 return { ...state, history: newHistory };
-
-            } else {
+            } else if (part.text) {
                 // If no tool calls, assume LLM has generated the final text response (DDIAlert JSON)
-                const responseText = result.response.text();
-                let jsonString = responseText.trim();
+                let jsonString = part.text.trim();
                 // Clean up markdown wrapper if present
                 if (jsonString.startsWith('```json')) {
                     jsonString = jsonString.substring(7, jsonString.lastIndexOf('```')).trim();
@@ -202,28 +233,26 @@ export class EGAAgent {
                     throw new Error("Gemini final response missing required alert fields.");
                 }
 
-                // Ensure drugA and drugB are populated, possibly from the initial context or a successful KG query result
-                // A more robust solution might extract these directly from the relevant tool_output in history.
-                const kgResultFromHistory = state.history.find(msg => msg.parts.some(p => p.tool_output?.tool_name === 'kg_query' && p.tool_output?.status === 'success'))?.parts
-                                          .find(p => p.tool_output)?.tool_output?.data as DDIQueryResult[] | undefined;
+                // Ensure drugA and drugB are populated
+                const kgResultFromHistory = state.history.find(msg => 
+                    msg.parts.some(p => 'tool_output' in p && p.tool_output?.tool_name === 'kg_query' && p.tool_output?.status === 'success')
+                )?.parts.find(p => 'tool_output' in p)?.tool_output?.data as DDIQueryResult[] | undefined;
 
                 if (kgResultFromHistory && kgResultFromHistory.length > 0) {
-                    // Assuming the alert refers to the first DDI found, or iterate if multiple alerts expected
                     parsedAlert.drugA = parsedAlert.drugA || kgResultFromHistory[0].drugA;
                     parsedAlert.drugB = parsedAlert.drugB || kgResultFromHistory[0].drugB;
                 } else {
-                    // Fallback to initial context if no KG result, or if LLM didn't include them
                     parsedAlert.drugA = parsedAlert.drugA || state.initialContext.allMedicationNames[0] || 'N/A';
                     parsedAlert.drugB = parsedAlert.drugB || state.initialContext.allMedicationNames[1] || 'N/A';
                 }
 
                 console.log("Generated Alert:", parsedAlert);
-                return parsedAlert; // Return the final DDIAlert
+                return parsedAlert;
             }
 
+            throw new Error("Unexpected response format from model");
         } catch (error) {
             console.error('Error during LLM orchestration:', error);
-            // Fallback for critical errors during LLM interaction
             return {
                 severity: 'Low',
                 drugA: 'Error',
