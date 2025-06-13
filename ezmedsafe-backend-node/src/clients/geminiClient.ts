@@ -1,4 +1,7 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
+// ezmedsafe-backend-node/src/clients/geminiClient.ts
+import { GoogleGenerativeAI } from "@google/generative-ai"; // Keep if needed for embeddings or other direct uses
+import { ChatGoogleGenerativeAI } from "@langchain/google-genai"; // Import LangChain's Gemini chat model
+import { GoogleGenerativeAIEmbeddings } from "@langchain/google-genai"; // For embedding model
 import dotenv from 'dotenv';
 import path from 'path';
 
@@ -11,9 +14,21 @@ if(!GEMINI_API_KEY){
     process.exit(1);
 }
 
-const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
+// Function to get a LangChain-wrapped Generative Model (for chat/generation)
+export const getGenerativeModel = () => {
+    return new ChatGoogleGenerativeAI({
+        apiKey: GEMINI_API_KEY,
+        model: "gemini-pro",
+        temperature: 0.1, // Adjust as needed
+    });
+};
 
-export const getGenerativeModel = () => genAI.getGenerativeModel({model: "gemini-pro"});
-export const getEmbeddingModel = () => genAI.getGenerativeModel({model: "embedding-001"});
+// Function to get a LangChain-wrapped Embedding Model
+export const getEmbeddingModel = () => {
+    return new GoogleGenerativeAIEmbeddings({
+        apiKey: GEMINI_API_KEY,
+        model: "embedding-001",
+    });
+};
 
-console.log('Gemini client initialized.');
+console.log('Gemini client (LangChain-wrapped) initialized.');

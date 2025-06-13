@@ -1,132 +1,83 @@
 // ezmedsafe-backend-node/src/agents/egaAgent.ts
-import { getGenerativeModel } from "../clients/geminiClient";
-import { SchemaType, FunctionDeclaration, Tool } from "@google/generative-ai";
+import { getGenerativeModel } from "../clients/geminiClient"; // Now returns LangChain ChatGoogleGenerativeAI
 import {
     DDIAlert,
     LLMConversationState,
-    LLMMessage,
-    LLMToolCall,
-    ToolFunction,
-    ToolResult,
-    DDIQueryResult, // Keep DDIQueryResult for tool output typing
+    PatientContextInput,
+    ToolResult, // Keep ToolResult type
 } from "../types";
-import { KGQAgent } from "./kgqAgent"; // Import KGQAgent to execute its functions
-import { ERAAgent } from "./eraAgent"; // Import ERAAgent to execute its functions
 
-// Instantiate agents for internal use by EGAAgent when LLM calls a tool
-const kgqAgent = new KGQAgent();
-const eraAgent = new ERAAgent();
+// LangChain imports
+import { Tool } from "@langchain/core/tools"; // Generic Tool class
+import { AgentExecutor, createToolCallingAgent } from "langchain/agents"; // For creating and executing tool-calling agents
+import { ChatPromptTemplate } from "@langchain/core/prompts"; // For structured prompts
+import { MessagesPlaceholder } from "@langchain/core/prompts"; // For conversation history placeholder
+import { AIMessage, HumanMessage } from "@langchain/core/messages"; // For explicit message types
+
+import { KGQAgent } from "./kgqAgent";
+import { ERAAgent } from "./eraAgent";
+
+// Instantiate internal agents (these will be wrapped as LangChain Tools)
+const kgqAgentInstance = new KGQAgent();
+const eraAgentInstance = new ERAAgent();
+
+// --- LangChain Tool Wrappers for KGQAgent and ERAAgent ---
+class KGQueryTool extends Tool {
+    name = "kg_query";
+    description = "Queries the Knowledge Graph for direct drug-drug interactions, mechanisms, consequences, and patient-specific exacerbations given a list of medication names and patient context. Returns structured DDI data.";
+    // Define schema more robustly if needed, matching what LLM expects
+    // _parameters and _call are internal LangChain methods
+    constructor() { super(); }
+    async _call(input: string): Promise<string> {
+        try {
+            const parsedInput = JSON.parse(input);
+            const result = await kgqAgentInstance.getDDIContext(parsedInput.medications, parsedInput.patientContext);
+            return JSON.stringify({ status: 'success', data: result } as ToolResult);
+        } catch (error: any) {
+            return JSON.stringify({ status: 'failure', error: error.message } as ToolResult);
+        }
+    }
+}
+
+class ERARetrieveTool extends Tool {
+    name = "era_retrieve";
+    description = "Retrieves evidence-based text snippets from the vector database (Pinecone) based on a semantic query related to drug interactions or effects. Returns a list of relevant text snippets.";
+    constructor() { super(); }
+    async _call(input: string): Promise<string> {
+        try {
+            const parsedInput = JSON.parse(input);
+            const result = await eraAgentInstance.retrieveEvidence(parsedInput.query, parsedInput.topK);
+            return JSON.stringify({ status: 'success', data: result } as ToolResult);
+        } catch (error: any) {
+            return JSON.stringify({ status: 'failure', error: error.message } as ToolResult);
+        }
+    }
+}
 
 export class EGAAgent {
+    private agentExecutor: AgentExecutor;
+
     constructor() {
-        console.log("EGAAgent initialized for MCP");
-    }
-
-    // Define the tools that the LLM can "call" (these define the LLM's capabilities)
-    private getToolDefinitions(): ToolFunction[] {
-        return [
-            {
-                name: "kg_query",
-                description: "Queries the Knowledge Graph for direct drug-drug interactions, mechanisms, consequences, and patient-specific exacerbations given a list of medication names and patient context.",
-                parameters: {
-                    type: SchemaType.OBJECT,
-                    properties: {
-                        medications: { 
-                            type: SchemaType.ARRAY, 
-                            description: "List of medication names (strings) to check for interactions.", 
-                            items: { type: SchemaType.STRING } 
-                        },
-                        patientContext: {
-                            type: SchemaType.OBJECT,
-                            description: "Patient's relevant physiological context (renal, hepatic, cardiac status) and age group.",
-                            properties: {
-                                age_group: { 
-                                    type: SchemaType.STRING, 
-                                    description: "Patient's age group category", 
-                                    enum: ["Child", "Adult", "Elderly"] 
-                                },
-                                renal_status: { 
-                                    type: SchemaType.BOOLEAN, 
-                                    description: "Whether patient has renal impairment" 
-                                },
-                                hepatic_status: { 
-                                    type: SchemaType.BOOLEAN, 
-                                    description: "Whether patient has hepatic impairment" 
-                                },
-                                cardiac_status: { 
-                                    type: SchemaType.BOOLEAN, 
-                                    description: "Whether patient has cardiac impairment" 
-                                }
-                            }
-                        }
-                    },
-                    required: ["medications", "patientContext"]
-                }
-            },
-            {
-                name: "era_retrieve",
-                description: "Retrieves evidence-based text snippets from the Pinecone vector database based on a semantic query related to drug interactions or effects.",
-                parameters: {
-                    type: SchemaType.OBJECT,
-                    properties: {
-                        query: { 
-                            type: SchemaType.STRING, 
-                            description: "The semantic query string to find relevant evidence (e.g., 'interaction between X and Y mechanism')." 
-                        },
-                        topK: { 
-                            type: SchemaType.NUMBER, 
-                            description: "Optional. Number of top results to retrieve (default 3).", 
-                            default: 3 
-                        }
-                    },
-                    required: ["query"]
-                }
-            }
+        console.log("EGAAgent initialized with LangChain");
+        const llm = getGenerativeModel(); // Get LangChain-wrapped LLM
+        const tools = [
+            new KGQueryTool(),
+            new ERARetrieveTool(),
+            // Add other tools here
         ];
-    }
 
-    /**
-     * Orchestrates the multi-turn interaction with the LLM to generate a DDI alert.
-     * This method manages the LLM's tool calls and integrates tool results.
-     * @param state The current conversation state including history and initial context.
-     * @returns A DDIAlert object if the LLM successfully generates it, otherwise continues the conversation.
-     */
-    async orchestrateDDIAlertGeneration(
-        state: LLMConversationState
-    ): Promise<DDIAlert | LLMConversationState> {
-        const model = getGenerativeModel();
-        const tools = this.getToolDefinitions();
-
-        // Convert LLMMessage to Gemini Content format
-        const convertToGeminiContent = (message: LLMMessage) => {
-            return {
-                role: message.role,
-                parts: message.parts.map(part => {
-                    if ('text' in part) return { text: part.text };
-                    if ('tool_code' in part) return { 
-                        functionCall: {
-                            name: part.tool_code.tool_name,
-                            args: part.tool_code.parameters
-                        }
-                    };
-                    if ('tool_output' in part) return { text: JSON.stringify(part.tool_output) };
-                    return { text: '' };
-                })
-            };
-        };
-
-        const systemInstructionText = `
-            You are an expert clinical pharmacologist and an AI-powered drug interaction early warning system.
+        // Define the prompt template for the agent
+        // This is where your Model Context Protocol instructions go.
+        const agentPrompt = ChatPromptTemplate.fromMessages([
+            new HumanMessage(`You are an expert clinical pharmacologist and an AI-powered drug interaction early warning system.
             Your task is to analyze potential drug-drug interactions (DDIs) and adverse drug reactions (ADRs)
             for a patient, considering their specific context. You can use the following tools to gather information:
-            ${JSON.stringify(tools)} // Providing tools directly in the prompt
-            Once you have gathered all necessary information, generate a drug interaction alert in JSON format.
-            The 'severity' should be 'Critical', 'High', 'Moderate', or 'Low'.
-            The 'explanation' should describe the mechanism of interaction clearly.
-            The 'clinicalImplication' should explain what this means for the patient clinically.
-            The 'recommendation' should provide actionable advice for healthcare professionals.
-
-            Ensure your final response is ONLY a JSON object and adheres to the following TypeScript interface:
+            `),
+            new MessagesPlaceholder("chat_history"), // Placeholder for conversation history
+            new HumanMessage(`Patient medications and context: {patient_input}.
+            Based on the above, determine if there are drug interactions.
+            Once all necessary information is gathered, output the DDI alert in JSON format,
+            adhering strictly to the DDIAlert TypeScript interface:
             interface DDIAlert {
               severity: 'Critical' | 'High' | 'Moderate' | 'Low';
               drugA: string;
@@ -134,132 +85,83 @@ export class EGAAgent {
               explanation: string;
               clinicalImplication: string;
               recommendation: string;
-            }
-        `;
+            }`),
+            new MessagesPlaceholder("agent_scratchpad"), // Required for agent internal state
+        ]);
 
-        // The conversation history passed to the LLM
-        // The first message is typically the system instruction, followed by actual conversation turns.
-        const conversationContent = [
-            { role: 'user', parts: [{ text: systemInstructionText }] } as LLMMessage,
-            ...state.history,
-        ];
+        // Create the tool-calling agent
+        const agent = createToolCallingAgent({
+            llm: llm,
+            tools: tools,
+            prompt: agentPrompt,
+        });
+
+        // Create the AgentExecutor
+        this.agentExecutor = new AgentExecutor({
+            agent: agent,
+            tools: tools,
+            verbose: true, // Set to true for debugging agent's thought process
+        });
+    }
+
+    /**
+     * Initiates and runs the LangChain Agent to generate a DDI alert.
+     * @param initialContext The initial patient and medication context.
+     * @returns A DDIAlert object.
+     */
+    async generateDDIAlert(
+        patientContext: PatientContextInput,
+        allMedicationNames: string[]
+    ): Promise<DDIAlert> {
+        const initialUserInput = `Patient has existing medications: ${allMedicationNames.join(', ')}. ` +
+                                 `Patient context: Age Group: ${patientContext.age_group || 'Not specified'}, ` +
+                                 `Renal Impairment: ${patientContext.renal_status ? 'Yes' : 'No'}, ` +
+                                 `Hepatic Impairment: ${patientContext.hepatic_status ? 'Yes' : 'No'}, ` +
+                                 `Cardiac Disease: ${patientContext.cardiac_status ? 'Yes' : 'No'}.`;
 
         try {
-            const result = await model.generateContent({
-                contents: conversationContent.map(convertToGeminiContent),
-                tools: [{
-                    functionDeclarations: tools.map(tool => ({
-                        name: tool.name,
-                        description: tool.description,
-                        parameters: {
-                            type: SchemaType.OBJECT,
-                            properties: tool.parameters.properties,
-                            required: tool.parameters.required
-                        }
-                    })) as FunctionDeclaration[]
-                }] as Tool[]
+            // The agentExecutor will manage the entire multi-turn interaction
+            // and tool calls internally.
+            const result = await this.agentExecutor.invoke({
+                patient_input: initialUserInput, // This maps to the prompt placeholder
+                chat_history: [], // Start with empty history for a fresh interaction
             });
 
-            const response = result.response;
-            const candidates = response.candidates;
-            if (!candidates || candidates.length === 0) {
-                throw new Error("No response from model");
+            const finalOutput = result.output; // This should be the JSON string from the LLM
+
+            // Parse the final alert. Need robust parsing to handle markdown wrappers etc.
+            let jsonString = finalOutput.trim();
+            if (jsonString.startsWith('```json')) {
+                jsonString = jsonString.substring(7, jsonString.lastIndexOf('```')).trim();
+            } else if (jsonString.startsWith('```')) {
+                jsonString = jsonString.substring(3, jsonString.lastIndexOf('```')).trim();
             }
 
-            const candidate = candidates[0];
-            const content = candidate.content;
-            if (!content || !content.parts || content.parts.length === 0) {
-                throw new Error("No content in response");
+            const parsedAlert: DDIAlert = JSON.parse(jsonString);
+
+            // Basic validation
+            if (!parsedAlert.severity || !parsedAlert.explanation || !parsedAlert.clinicalImplication || !parsedAlert.recommendation) {
+                throw new Error("LangChain Agent did not return a complete DDIAlert.");
             }
 
-            const part = content.parts[0];
-            if (part.functionCall) {
-                const llmRequestedToolCall: LLMToolCall = {
-                    tool_name: part.functionCall.name,
-                    parameters: part.functionCall.args
-                };
+            // You might need logic here to ensure drugA and drugB are correct from initial context
+            // or from a successful KG query that the LLM used.
+            // For simplicity, assuming LLM populates them correctly based on its reasoning.
+            parsedAlert.drugA = parsedAlert.drugA || allMedicationNames[0] || 'N/A';
+            parsedAlert.drugB = parsedAlert.drugB || allMedicationNames[1] || 'N/A'; // Assuming two main drugs
 
-                // Add LLM's tool_code request to history
-                const newHistory: LLMMessage[] = [...state.history, { role: 'model', parts: [{ tool_code: llmRequestedToolCall }] }];
+            console.log("Generated Alert (via LangChain Agent):", parsedAlert);
+            return parsedAlert;
 
-                let toolResult: ToolResult | undefined;
-
-                // Execute the tool based on LLM's request
-                if (llmRequestedToolCall.tool_name === "kg_query") {
-                    try {
-                        const kgData = await kgqAgent.getDDIContext(
-                            llmRequestedToolCall.parameters.medications,
-                            llmRequestedToolCall.parameters.patientContext
-                        );
-                        toolResult = { tool_name: "kg_query", status: "success", data: kgData };
-                    } catch (err: any) {
-                        toolResult = { tool_name: "kg_query", status: "failure", error: err.message };
-                    }
-                } else if (llmRequestedToolCall.tool_name === "era_retrieve") {
-                    try {
-                        const retrievedEvidence = await eraAgent.retrieveEvidence(
-                            llmRequestedToolCall.parameters.query,
-                            llmRequestedToolCall.parameters.topK
-                        );
-                        toolResult = { tool_name: "era_retrieve", status: "success", data: retrievedEvidence };
-                    } catch (err: any) {
-                        toolResult = { tool_name: "era_retrieve", status: "failure", error: err.message };
-                    }
-                } else {
-                    toolResult = { tool_name: llmRequestedToolCall.tool_name, status: "failure", error: `Unknown tool: ${llmRequestedToolCall.tool_name}` };
-                }
-
-                // Add the result of the tool execution back to the history for the LLM
-                if (toolResult) {
-                    newHistory.push({ role: 'user', parts: [{ tool_output: toolResult }] });
-                }
-
-                // Return the updated state, indicating more turns are needed
-                return { ...state, history: newHistory };
-            } else if (part.text) {
-                // If no tool calls, assume LLM has generated the final text response (DDIAlert JSON)
-                let jsonString = part.text.trim();
-                // Clean up markdown wrapper if present
-                if (jsonString.startsWith('```json')) {
-                    jsonString = jsonString.substring(7, jsonString.lastIndexOf('```')).trim();
-                } else if (jsonString.startsWith('```')) {
-                    jsonString = jsonString.substring(3, jsonString.lastIndexOf('```')).trim();
-                }
-
-                const parsedAlert: DDIAlert = JSON.parse(jsonString);
-
-                // Basic validation for the final alert structure
-                if (!parsedAlert.severity || !parsedAlert.explanation || !parsedAlert.clinicalImplication || !parsedAlert.recommendation) {
-                    throw new Error("Gemini final response missing required alert fields.");
-                }
-
-                // Ensure drugA and drugB are populated
-                const kgResultFromHistory = state.history.find(msg => 
-                    msg.parts.some(p => 'tool_output' in p && p.tool_output?.tool_name === 'kg_query' && p.tool_output?.status === 'success')
-                )?.parts.find(p => 'tool_output' in p)?.tool_output?.data as DDIQueryResult[] | undefined;
-
-                if (kgResultFromHistory && kgResultFromHistory.length > 0) {
-                    parsedAlert.drugA = parsedAlert.drugA || kgResultFromHistory[0].drugA;
-                    parsedAlert.drugB = parsedAlert.drugB || kgResultFromHistory[0].drugB;
-                } else {
-                    parsedAlert.drugA = parsedAlert.drugA || state.initialContext.allMedicationNames[0] || 'N/A';
-                    parsedAlert.drugB = parsedAlert.drugB || state.initialContext.allMedicationNames[1] || 'N/A';
-                }
-
-                console.log("Generated Alert:", parsedAlert);
-                return parsedAlert;
-            }
-
-            throw new Error("Unexpected response format from model");
         } catch (error) {
-            console.error('Error during LLM orchestration:', error);
+            console.error('Error running LangChain Agent for DDI alert generation:', error);
             return {
-                severity: 'Low',
-                drugA: 'Error',
-                drugB: 'Error',
-                explanation: 'An internal error occurred during alert generation.',
-                clinicalImplication: 'Please manually review the medication combination.',
-                recommendation: 'Contact support if this persists.',
+                severity: 'Critical', // Indicate a critical error in alert generation itself
+                drugA: 'UNKNOWN',
+                drugB: 'UNKNOWN',
+                explanation: 'Failed to generate a detailed alert due to an internal AI system error with LangChain Agent.',
+                clinicalImplication: 'Automated alert unavailable. Manual clinical review is required immediately.',
+                recommendation: 'Verify system logs and AI service status. Do not proceed without manual verification.'
             };
         }
     }
