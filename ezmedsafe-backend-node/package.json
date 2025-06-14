@@ -54,7 +54,8 @@
     "redis": "^5.5.5",
     "ts-node": "^10.9.2",
     "typescript": "^5.8.3",
-    "winston": "^3.11.0"
+    "winston": "^3.11.0",
+    "@modelcontextprotocol/sdk-typescript": "^1.0.0"
   },
   "devDependencies": {
     "@types/cors": "^2.8.17",

@@ -1,0 +1,12 @@
+{
+    "mcpServers": {
+      "neo4j-ddi": {
+        "command": "node",
+        "args": ["dist/mcp-servers/start-neo4j.js"]
+      },
+      "pinecone-evidence": {
+        "command": "node", 
+        "args": ["dist/mcp-servers/start-pinecone.js"]
+      }
+    }
+  }
